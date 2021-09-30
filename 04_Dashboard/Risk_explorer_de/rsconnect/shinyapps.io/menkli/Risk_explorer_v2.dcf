@@ -1,0 +1,14 @@
+name: Risk_explorer_v2
+title: Risk_explorer_v2
+username:
+account: menkli
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 4639471
+bundleId: 5059237
+url: https://menkli.shinyapps.io/Risk_explorer_v2/
+when: 1632299585.85896
+lastSyncTime: 1632299585.85896
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: .RData|Risk_explorer_v2.R|www/customs.css

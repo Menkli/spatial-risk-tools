@@ -1,0 +1,459 @@
+---
+title: "Modeling social vulnerability to malaria in East Africa: A (spatially explicit) system-dynamics approach"  
+author: "Linda Menk (Supervised by: Christian Neuwirth, Stefan Kienberger)"
+date: "June 12, 2019"
+output: 
+  html_document:
+    theme: yeti
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+      number_sections: true
+
+---
+<style type="text/css">
+
+body{ /* Normal  */
+      font-size: 12px;
+      text-align: justify;
+      line-height: 1.5;
+  }
+th,td {  /* Table  */
+  font-size: 10px;
+  width:700px;
+  white-space:nowrap;
+}
+
+
+h1.title {
+  font-size: 38px;
+  
+}
+h1 { /* Header 1 */
+  font-size: 28px;
+  
+}
+h2 { /* Header 2 */
+    font-size: 22px;
+  
+}
+h3 { /* Header 3 */
+  font-size: 18px;
+  f
+  
+}
+code.r{ /* Code block */
+    font-size: 12px;
+}
+pre { /* Code block - determines code spacing between lines */
+    font-size: 14px;
+}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+  
+```{r GEONS,message = FALSE}
+
+#Loading necessary libraries
+library(rgdal)
+library(raster)
+library(maptools)
+library(devtools)
+library(summarytools)
+library(ggplot2)
+library(sp)
+library(factoextra)
+library(fpc)
+library(NbClust)
+library(glue)
+library(dplyr)
+library(ggplot2)
+library(reshape2)
+library(ggpubr)
+#Loading the spatial dataset (Shapefile) holding the data which is to be analyzed
+vul_dat <- readOGR("R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\04_Geonization\\results\\RiskExport\\Risk_H1_45.shp")
+
+#Making a dataframe from the spatial datset
+vul_df<-data.frame(vul_dat[1:2], vul_dat[4], vul_dat [6:17])
+
+```
+
+
+```{r Normality test,message = FALSE,fig.height=20,fig.width=15, eval = FALSE}
+
+# Testing if the data is normally distributed, by performing a Shapiro-Wilk normality test on every variable.
+# The H0 hypothesis is, that the data does not significantly differ from a normal distribution. If the resulting p-value is significant (<0.05), the distribution is non-normal.
+sh.Imm<-shapiro.test(GEONS_df$Immunity)
+sh.Hos<-shapiro.test(GEONS_df$Distance.to.closest.hospital)
+sh.Roa<-shapiro.test(GEONS_df$Distance.to.roads)
+sh.Urb<-shapiro.test(GEONS_df$Distance.to.closest.urban.center)
+sh.DR<-shapiro.test(GEONS_df$Dependency.ratio)
+sh.Edu<-shapiro.test(GEONS_df$Secondary.higher.education)
+sh.HIV<-shapiro.test(GEONS_df$HIV.Prevalence)
+sh.Bed<-shapiro.test(GEONS_df$Child.does.not.sleep.under.bednet)
+sh.Poor<-shapiro.test(GEONS_df$People.living.on.less.than.2US.)
+sh.Stu<-shapiro.test(GEONS_df$Stunting.children)
+sh.Con<-shapiro.test(GEONS_df$Conflict.density)
+sh.WOC<-shapiro.test(GEONS_df$WOCBA)
+sh.Pop<-shapiro.test(GEONS_df$Population.change)
+sh.EIR<-shapiro.test(GEONS_df$EIR)
+
+#Creating plots to diaplay the results from the Shapiro-Wilk test and density plots
+
+dImm<-ggdensity(GEONS_df$Immunity, caption=glue("Shapiro-Wilk test p-value: {sh.Imm$p.value}"),
+          main = "Immunity to malaria", font.main=15, font.x=13, font.y=13, font.tickslab=13, font.caption=13,
+          xlab = "Immunity (%)")
+
+dHos<-ggdensity(GEONS_df$Distance.to.closest.hospital, caption=glue("Shapiro-Wilk test p-value: {sh.Hos$p.value}"), font.main=15, font.x=13, font.y=13, font.tickslab=13, font.caption=13,
+          main = "Distance to hospital",
+          xlab = "Distance to nearest hospital (km)")
+
+dRoa<-ggdensity(GEONS_df$Distance.to.roads, caption=glue("Shapiro-Wilk test p-value: {sh.Roa$p.value}"),font.main=15, font.x=13, font.y=13, font.tickslab=13, font.caption=13,
+          main = "Distance to roads/transportation networks",
+          xlab = "Path distance (least cost)")
+
+dUrb<-ggdensity(GEONS_df$Distance.to.closest.urban.center, caption=glue("Shapiro-Wilk test p-value: {sh.Urb$p.value}"), font.main=15, font.x=13, font.y=13, font.tickslab=13, font.caption=13,
+          main = "Travel time to clostest urban centers/markets",
+          xlab = "Travel time (hours)")
+
+dDR<-ggdensity(GEONS_df$Dependency.ratio, caption=glue("Shapiro-Wilk test p-value: {sh.DR$p.value}"),font.main=15, font.x=13, font.y=13, font.tickslab=13, font.caption=13,
+          main = "Dependency ratio",
+          xlab = "Dependency ratio (%)")
+
+dEdu<-ggdensity(GEONS_df$Secondary.higher.education, caption=glue("Shapiro-Wilk test p-value: {sh.Edu$p.value}"),font.main=15, font.x=13, font.y=13, font.tickslab=13, font.caption=13,
+          main = "People with secondary of higher education",
+          xlab = "Secondary or higher education (%)")
+
+dHIV<-ggdensity(GEONS_df$HIV.Prevalence, caption=glue("Shapiro-Wilk test p-value: {sh.HIV$p.value}"), font.main=15, font.x=13, font.y=13, font.tickslab=13, font.caption=13,
+          main = "HIV prevalence",
+          xlab = "HIV prevalence among 13-49 year olds (%)")
+
+dBed<-ggdensity(GEONS_df$Child.does.not.sleep.under.bednet, caption=glue("Shapiro-Wilk test p-value: {sh.Bed$p.value}"),font.main=15, font.x=13, font.y=13, font.tickslab=13, font.caption=13,
+          main = "Bednet usage",
+          xlab = "Child did not sleep under net last night (%)")
+
+dPoor<-ggdensity(GEONS_df$People.living.on.less.than.2US., caption=glue("Shapiro-Wilk test p-value: {sh.Poor$p.value}"),font.main=15, font.x=13, font.y=13, font.tickslab=13, font.caption=13,
+          main = "People living on less than 2US$ per day",
+          xlab = "People living on less than 2US$ per day (%)")
+
+dStu<-ggdensity(GEONS_df$Stunting.children, caption=glue("Shapiro-Wilk test p-value: {sh.Stu$p.value}"), font.main=15, font.x=13, font.y=13, font.tickslab=13, font.caption=13,
+          main = "Stunting children under 5 years",
+          xlab = "Stunting children under 5 years (%)")
+
+dCon<-ggdensity(GEONS_df$Conflict.density, caption=glue("Shapiro-Wilk test p-value: {sh.Con$p.value}"), font.main=15, font.x=13, font.y=13, font.tickslab=13, font.caption=13,
+          main = "Armed conflict events",
+          xlab = "Conflict density (km²)")
+
+dWOC<-ggdensity(GEONS_df$WOCBA, caption=glue("Shapiro-Wilk test p-value: {sh.WOC$p.value}"),font.main=15, font.x=13, font.y=13, font.tickslab=13, font.caption=13,
+          main = "Women of childbearing age (13-49 years)",
+          xlab = "WOCBA (%)")
+
+dPop<-ggdensity(GEONS_df$Population.change,caption=glue("Shapiro-Wilk test p-value: {sh.Pop$p.value}"), font.main=15, font.x=13, font.y=13, font.tickslab=13, font.caption=13,
+          main = "Population change",
+          xlab = "Population change (1970-2013)")
+
+dEIR<-ggdensity(GEONS_df$EIR,caption=glue("Shapiro-Wilk test p-value: {sh.EIR$p.value}"), font.main=15, font.x=13, font.y=13, font.tickslab=13, font.caption=13,
+          main = "Entomological Inoculation Rate",
+          xlab = "EIR (%)")
+
+#Arranging the plots in a grid
+gridExtra::grid.arrange(dImm,dHos, dRoa, dUrb,dDR, dEdu, dHIV, dBed,dPoor, dStu, dCon, dWOC,dPop,dEIR,ncol=3)  #dImm,dEIR
+
+```
+
+
+#### Result: Number of clusters  
+```{r Scree Plot, message = FALSE, val =FALSE}
+
+#Creating Scree Plots (or "Elbow" plots) to see the decrease of total sum of squares with each added cluster
+
+#Creating a Scree plot object
+nch<-fviz_nbclust(vul_df, hcut, method = "wss") +
+#Defining where to draw the dashed line
+geom_vline(xintercept = 4, linetype = 2)
+
+#Plotting the Scree plots 
+pnch<-ggpubr::ggpar(nch,submain="(for AGNES clustering)")
+
+
+#Arranging the plots in a grid
+plot(pnch)  
+
+```
+
+
+```{r Clustering, message = FALSE,fig.height=16,fig.width=12}
+
+#AGNES 
+cluster_ag <- function(k, metric){
+ eclust(vul_df, "agnes", k = k, hc_metric=metric)
+}
+
+
+AS3 <- cluster_ag(3,"spearman")
+AK3 <- cluster_ag(3, "kendall")
+AS2 <- cluster_ag(2, "spearman")
+AK4 <- cluster_ag(2, "kendall")
+
+#DIANA
+cluster_di <- function(k, metric){
+  x <- eclust(vul_df, "diana", k = k, graph = FALSE,hc_metric=metric)
+  }
+
+DS3 <- cluster_di(3,"spearman")
+DK3 <- cluster_di(3, "kendall")
+DS4 <- cluster_di(4, "spearman")
+DK4 <- cluster_di(4, "kendall")
+
+
+shower <- function(obj, title){
+  x <- fviz_silhouette(obj,print.summary = 	FALSE)
+        ggpubr::ggpar(x,
+                main=title,
+                submain=glue("Average silhouette width: {format(obj$silinfo$clus.avg.widths[1],digits=3)}"),
+                caption=glue("Average cluster width 1: {format(obj$silinfo$clus.avg.widths[1],digits=3)}   2: {format(obj$silinfo$clus.avg.widths[2],digits=3)}  3: {format(obj$silinfo$clus.avg.widths[3],digits=3)}"),
+                xlab=FALSE,
+                legend.title = "Cluster No.",
+                font.main=15, font.x=10, font.y=10,font.subtitle=10,font.legend=10,font.caption=10,tickslab=FALSE)
+}
+
+p1 <- shower(AS3, "AGNES with Spearman Rho (3 cluster)")
+p2 <- shower(AK3, "AGNES with Kendalls tau (3 cluster)")
+p3 <- shower(AS2, "AGNES with Spearman Rho (2 cluster)")
+p4 <- shower(AK4, "AGNES with Kendalls tau (4 cluster)")
+p5 <- shower(DS3, "DIANA with Spearman Rho (3 cluster)")
+p6 <- shower(DK3, "DIANA with Kendalls tau (3 cluster)")
+p7 <- shower(DS4, "DIANA with Spearman Rho (4 cluster)")
+p8 <- shower(DK4, "DIANA with Kendalls tau (4 cluster)")
+
+#Arraging the plots in a grid
+gridExtra::grid.arrange(p1,p5,p2,p6,p3,p7,p4,p8, ncol = 2)
+
+```
+
+
+
+
+
+```{r Regionalizing,message = FALSE,fig.height=5,fig.width=15}
+
+# Save the cluster number of each geon in the GEONS_df dataframe as column 'DIANA'
+vul_dat$AS2 <- as.factor(AS2$cluster)
+vul_df$AS2 <- as.factor(AS2$cluster)
+#Split the dataframe GEONS_df into three groups based on the number in the cloumn 'DIANA'
+classA2 <- split(vul_df, vul_dat$AS2)
+
+#Writing the three fragments of the former GEONS_df dataframe to new dataframes. Each dataframe now represents one cluster. 
+AS21<-data.frame(classA2$`1`)
+AS22<-data.frame(classA2$`2`)
+#AS43<-data.frame(classA3$`3`)
+
+
+writeOGR(vul_dat, dsn = "C:/Temp" , layer = "AS2",overwrite = TRUE, driver="ESRI Shapefile")
+
+```
+
+Gaussian
+```{r G, eval = FALSE}
+library(correlation)
+library(see)
+library(ggraph)
+
+DS32 %>% 
+  correlation(partial = FALSE, method = "spearman") %>% 
+  summary()
+
+correlation(DS32,bayesian = TRUE)
+
+correlation(DS32, method="pearson") %>% 
+  plot()
+
+```
+
+```{r Statistics, message = FALSE}
+
+#Creating a table showing descriptive statistics (mean, sd, min, max) of each cluster
+
+#Loading necessary libraries
+library(kableExtra)
+library(reshape2)
+
+#Calculating descriptive statistics for each cluster
+stats <- function(df){
+  x<-descr(df, stats = c("mean", "sd", "min", "max"), transpose = TRUE)
+  m <- melt(x$Mean)
+  s <- melt(x$Std.Dev)
+  min <- melt(x$Min)
+  max <- melt(x$Max)
+  
+  return(list(mean = m, stdev = s, min = min, max = max))
+}
+
+w <- stats(AS21)
+u <- stats(AS22)
+#t <- stats(AS43)
+#r <- stats(AS44)
+
+ vars<-c("Einwohner nach Wirtschaftszweig: Primärer Sektor",
+         "Landwirtschaftlich genutzte Flächen (Feldstücke)","Erreichbarkeit",
+         "Niederschlagsvariabilität",
+          "Bodenfunktionsbewertung: Lebensraum für Bodenorganismen",
+          "Bodenfunktionsbewertung: Natürliche Bodenfruchtbarkeit",
+          "Bodenkarte: Wasserverhältnisse",
+                        "Bodenkarte: Grünlandwert",
+                        "Vielfalt landwirtschaftlicher Nutzpflanzen",
+                        "Beherbergungs- und Gastronomiebetriebe",
+                        "Vernderung der Bodenversiegelung",
+                        "Landwirtschaftlich benachteiligte Gebiete",
+                        "Kleinräumige Gehölzstrukturen", 
+                        "Landschaftsschutzgebiete und Naturschutzgebiete",
+                        "Nutzwasserversorgung"
+                        
+                        )
+
+
+statistics <- data.frame(vars,
+                         w$mean,
+                         u$mean,
+                         #t$mean,
+                         #r$mean,
+                         w$stdev,
+                         u$stdev,
+                         #t$stdev,
+                         #r$stdev, 
+                         w$min,
+                         u$min,
+                         #t$min,
+                         #r$min,
+                         w$max,
+                         u$max)
+                         #t$max)
+                         #r$max)
+
+#Visualizing the table
+kable(statistics,
+      digits=2,
+      col.names = c("Indikator","Cluster 1","Cluster 2","Cluster 1","Cluster 2","Cluster 1","Cluster 2","Cluster 1","Cluster 2")) %>% kable_styling(bootstrap_options = c("striped","bordered"), full_width = T) %>%
+  add_header_above(c(" " = 1, "Mmittelwert" = 2, "Standardabweichung" = 2, "Minimum" = 2, "Maximum" = 2)) %>%
+  add_header_above(c(" " = 1, "AGNES 2 Clusters" = 8))
+
+
+# save_kable(statistics,"C:/Temp/DS3_statistics.csv", bs_theme = "simplex", self_contained = TRUE)
+# kable_as_image(linda, filename = table_sumstat)
+# library(gridExtra)
+# qplot(1:10, 1:10, geom="blank")+theme_bw()+theme(line=element_blank(),text=element_blank())+annotation_custom(grob=tableGrob(tab_sumstat))
+```
+
+```{r Correlation Analysis, message = FALSE}
+
+#Creating a Correlation-plot for each cluster
+
+# #Function wich creates customized corrplots
+# make_corrplot <- function (dat,title)
+# {
+# #Loading necessary libraries
+# library (Hmisc)
+# library(RColorBrewer)
+# library(corrplot)
+# #Generating a correlation matrix using Spearman correlation
+# cors.test <- rcorr (as.matrix (dat [complete.cases (dat), ],type=c("spearman")))
+# #Extracting the strength and direction of the correlation from the matrix
+# cors <- cors.test$r
+# #Extracting the p-values defining significane from the matrix
+# ps <- cors.test$P
+# 
+# #Defining color ramp
+# cramp <- brewer.pal(10, "PiYG")
+# 
+# #Visualize the correlation matrix
+# corrplot (cors, add = FALSE, method = "shade", shade.col = NA, tl.col = "black",  mar=c(0,0,1,0),cex.main=0.80,tl.cex=0.60,tl.srt=35,
+# p.mat = ps, sig.level = c (0.01, 0.1, 0.5), insig = "label_sig",pch.cex=1, col = cramp, tl.offset = 1,main=title)
+# corrplot (cors, bg = "#333333", add = TRUE, type = "lower", method = "number", diag = FALSE, number.cex = 0.5,tl.pos = "n", cl.pos = "n", col = cramp)
+# #dev.off ()
+# }
+# 
+# #Executing the function
+# make_corrplot(AS21,"Spearman correlation: Cluster 1/2 (n=149)")#,"C:/Users/Linda/Documents/CorrMat_Region1.png")
+# make_corrplot(AS22,"Spearman correlation: Cluster 2/2 (n=18)")#,"C:/Users/Linda/Documents/CorrMat_Region2.png")
+# #make_corrplot(DS33,"Spearman correlation: Cluster 3/3 (n=36)")#,"C:/Users/Linda/Documents/CorrMat_Region3.png")
+# 
+# 
+# #p <- make_corrplot(GEONS_df,"Spearman correlation: Whole study region (N=108)")#,"C:/Users/Linda/Documents/CorrMat_All.png")
+
+#ggsave(p)
+
+```
+
+
+
+```{r CLD  Pairwise correlation,message = FALSE}
+
+#Calculating pairwise correlations which can be handed over to the function which generates the CLDs later
+
+#Loading necessary libraries
+library(Hmisc)
+
+Calculate_Correlation<-function(dat){
+  #Calculate correlations as matrix
+  Correlations<-rcorr(as.matrix(dat))
+  #Extracting p-values and strength and direction of the correlaiton. Also, reshape from matrix to a list containing information on what two variables are involved and what the p-value and the correlation is. 
+  p_vals<-reshape2::melt(Correlations$P)[,3]
+  corrs<-reshape2::melt(Correlations$r)
+  #Writing the p-values to the correlations
+  corrs$p<-p_vals
+  # Remove correlations of the same variable (e.g. Immunity&Immunity): Only correlations of the same variable will have a perfect correlation of 1. Therefore only values smaller than one are kept.  
+  corrs<-subset(corrs,value<1)
+  # Keep only significant correlations with p<5%
+  corrs<-subset(corrs,p<0.05)
+  #Write the result to a new dataframe
+  Cor<-data.frame(corrs)
+}
+
+#Execute the functions for the three clusters and additionally for the whole dataset as one.
+
+A2Reg1<-Calculate_Correlation(AS21)
+A2Reg2<-Calculate_Correlation(AS22)
+#D3Reg3<-Calculate_Correlation(DS33)
+
+```
+
+
+```{r Causal Loop Diagrams Correlation,message = FALSE}
+
+#Creating Causal Loop Diagrams from the previously extracted correlation information
+
+#Loading necessary libraries
+library(causalloop)
+library(dplyr)
+
+
+Make_CLD<-function(dat.f,CLD.name){
+#Define "from" which variable the relationship starts (first listed variable from the correlation)
+from = as.character(dat.f$Var1)
+#Define "to" which variable the relationship is directed (second listed variable from the correlation)
+to = as.character(dat.f$Var2)
+#Define the strength of the relationship (r value from the correlation)
+weight = c(abs(dat.f$value))
+#Define whether the relationship is of positive or of negative nature (is the r value from the correlation smaller or greater than 0)
+Polarity<-c(ifelse(dat.f$value>0,dat.f$polarity<-1,dat.f$polarity<--1))
+
+#Createing a CLD Object
+CLD.name<-causalloop:::CLD(from=from,to=to,polarity=Polarity,weight=weight)
+CLD.name<-setEdgeFormat(CLD.name,"penwidthAdj",3)
+
+#Plot the CLD
+plot(CLD.name, nodes = NULL, steps = 1, recolor = TRUE,
+  textWidth = 10)
+
+}
+
+Make_CLD(A2Reg1,CLD_A2Reg_1)
+Make_CLD(A2Reg2,CLD_A2Reg_2)
+#Make_CLD(D3Reg3,CLD_DReg_3)
+```
+

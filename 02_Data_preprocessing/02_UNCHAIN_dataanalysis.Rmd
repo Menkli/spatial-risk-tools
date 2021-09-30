@@ -1,0 +1,325 @@
+---
+title: "02_UNCHAIN_dataanalysis"
+author: "Linda Menk"
+date: "20 1 2021"
+output: 
+  html_document:
+    theme: flatly
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: false
+      number_sections: true
+---
+
+
+```{r setup, include=FALSE, echo=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Workflow  
+## Open questions:  
+- Lucias data = 1 km resolution. Land use data (Bodenbewertung, Grassland/Forest/Imperviousness change, Small Wooden Features has higher resolution (5m to 20m)). Shall we make really small Geons and focus on Lungau and Flachgau or should we aggregate the high resolution data to 1 km and use all of SBG? But then the high resolution data will be more or less useless. 
+- Include Salzburg Stadt or not? (If not included Flachgau has a hole)
+
+# Data acqusition  
+## Sources
+- RESPECT data  
+- Copernicus Land Monitoring Service(mostly High-resolution datasets)
+
+# Data exploration
+## Quality check
+This script encompasses the preprocessing steps necessary to use climate raster data for geonization in eCognition. It reads netCDF files, compares if the read files are of the same extent, crs, resolution, rotation and if they have the same number of columns and rows. It then standardizes the cell values to a mean of 0 and a sd of 1 to make values in different units (like # of heatdays and precipitation in mm) comparable. These values are then stretched to a 8-bit interval, in order to be fit for use in the remote sensing software "eCognition".It then writes the processed data to .tif files. Statistical info and visulaizations are plotted at the end of the script.
+
+```{r libraries, echo=FALSE, message=FALSE, include=FALSE}
+# Load libraries
+library(terra)
+library(ENMTools) # for correlation plot
+library(raster)
+library(knitr)
+library(kableExtra)
+library(corrplot)
+library(ggplot2)
+library(ggdist)
+library(rasterVis)
+library(plotly)
+library(geodiv) #for kurtosis
+library(dplyr)
+library(magrittr)
+```
+
+```{r prepare agricultural mask}
+crs_all<-"+proj=laea +lat_0=52 +lon_0=10 +x_0=4321000 +y_0=3210000 +ellps=GRS80 +units=m +no_defs"
+
+Agri_mask <- vect("R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\Drought_data_Salzburg\\Bodenfunktionsbewertung_Shapefile\\Bodenfunktionsbewertung\\Bodenfunktionsbewertung.shp") %>% 
+  project(crs_all)
+
+Agri_mask$yes <- 20
+
+Mask <- rast("R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\Mask_Salzburg_1km\\Mask_Salzburg_1km.tif") %>% 
+  aggregate(fact = 10, fun = mean)
+
+Agri_rast<-rasterize(Agri_mask, Mask, field ="yes", touches=TRUE)
+
+plot(Agri_rast)
+
+Agri_rast <- cover(Agri_rast, Mask)
+
+Agri_rast[is.na(Agri_rast)] <- 255
+Agri_rast[(Agri_rast == -1)] <- 255
+
+
+
+# Visualization
+Agri_rast_p <- raster(Agri_rast)
+prim <- gplot(Agri_rast_p) + geom_tile(aes(fill=value), alpha=0.8) + coord_equal()+ scale_fill_gradient2(low = '#4cbb17', mid = '#f0e130', high ='#b7410e' , midpoint=128)+ggtitle("Agricultural area")
+ggplotly(prim, tooltip= "value")
+
+#--------------
+# Export
+export <- "R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\Mask_Salzburg_1km\\"
+agri <- file.path(export,"Agri.tif")
+terra::writeRaster(Agri_rast, agri, names = "Agri_mask", overwrite = TRUE)
+
+```
+
+```{r prepare final mask}
+
+vul_path <- "R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\00_Final_data\\01_Vulnerability\\V\\"
+
+vul_stack <- list.files(path = vul_path , pattern='.tif', all.files=TRUE, full.names = TRUE) %>% 
+  rast()
+
+#mask_0 <- rast("R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\Mask_Salzburg_1km\\Mask_SBG_only_1km.tif")
+#agri_mask <- rast("R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\Mask_Salzburg_1km\\Agri.tif")
+
+
+# We want mask to have the same projection and extent as vul_stack and forest_mask (they already match)
+mask_1 <- project(Mask, vul_stack) %>% 
+  crop(vul_stack)
+
+# We remove everything from forest_mask which is not also in mask and then add 255 to NA area, so that the whole picture has either 255 or 0 as a value
+# We mask everything from the forest_mask which is not contained in the mask (Germany and other areas outside of Salzburg). Outside Salzburg is NA, inside is 0 and forested areas are 255. We want also inside Salzburg to be NA. 
+mask_2 <- terra::mask(Agri_rast, mask_1)
+
+mask_2[mask_2==255] <- NA
+```
+
+
+# Vulnerability
+```{r import Vulnerability data}
+
+vul_path <- "R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\00_Final_data\\01_Vulnerability\\V\\"
+
+vul_stack <- list.files(path = vul_path , pattern='.tif', all.files=TRUE, full.names = TRUE) %>% 
+  rast()
+
+vulnerability <- terra::mask(vul_stack, mask_2)
+plot(vul_stack)
+vulnerability[is.na(vulnerability)] <- 255
+
+writeRaster(vulnerability,"R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\00_Final_data\\01_Vulnerability\\Stacks\\Vulnerability_stack.tif", overwrite = TRUE)
+```
+# 02_Exposure  
+```{r import Exposure data}
+
+exp_path <- "R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\00_Final_data\\02_Exposure\\"
+
+exp_stack <- list.files(path = exp_path, pattern='.tif', all.files=TRUE, full.names = TRUE) %>% 
+  rast()
+
+
+exposure <- terra::mask(exp_stack, mask_2)
+#plot(exposure)
+exposure[is.na(exposure)] <- 255
+plot(exposure)
+writeRaster(exposure,"R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\00_Final_data\\02_Exposure\\Stacks\\Exposure_stack.tif", overwrite = TRUE)
+
+```
+
+# 03_Hazard: Variability
+```{r import Hazard data}
+
+haz_path <- "R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\00_Final_data\\03_Hazard\\"
+
+haz_stack <- list.files(path = haz_path, pattern='.tif', all.files=TRUE, full.names = TRUE) %>% 
+  rast() %>% 
+  project(crs_all)
+  
+plot(haz_stack)
+# 
+# hazard <- terra::mask(haz_stack, mask_2)
+# plot(hazard)
+# hazard[is.na(hazard)] <- 255
+# writeRaster(hazard,"R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\00_Final_data\\03_Hazard\\Stacks\\Hazard_stack.tif", overwrite = TRUE)
+# 
+haz_stack[haz_stack==255] <- NA
+plot(haz_stack)
+clip
+writeRaster(haz_stack,"R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\00_Final_data\\03_Hazard\\Stacks\\Hazard_stack_for_pres.tif", overwrite = TRUE)
+```
+
+```{r hazard SPI}
+
+spi_path <- "R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\01_ZAMG_SPARTACUS_Monthly\\Output\\Data\\SPI-6"
+
+spi_stack <- list.files(path = spi_path, pattern='.tif', all.files=TRUE, full.names = TRUE) %>% 
+  rast() %>% 
+  project(mask_2)
+
+spi_count <- subset(spi_stack, 1:6)
+spi_delta <- subset(spi_stack, 7:10)
+
+
+spi_count <- terra::mask(spi_count, mask_2)
+spi_delta <- terra::mask(spi_delta, mask_2)
+plot(spi_delta)
+#spi[is.na(spi)] <- 255
+writeRaster(spi_count,"R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\R_Scripts\\Risk_explorer_de\\data\\SPI_count_stack.tif", overwrite = TRUE)
+writeRaster(spi_delta,"R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\R_Scripts\\Risk_explorer_de\\data\\SPI_delta_stack.tif", overwrite = TRUE)
+```
+
+
+
+```{r Missing values, echo=FALSE, message=FALSE, include=FALSE}
+# Check for missing values
+
+#shows NA values
+NAvalue(data)
+
+```
+
+# Data exploration  
+## Histograms, boxplots, descriptve statistics, correlation analysis, PCA    
+
+
+ 
+```{r plotly, fig.width=10}
+# Plot rasters interactive 
+
+# Style the plot
+austria<-gplot(vulnerability) + facet_wrap(~variable) +
+  geom_tile(aes(fill=value)) + coord_equal()
+
+#Plot the plot
+ggplotly(austria)
+
+```
+
+```{r Descriptive statistics}
+# Descriptive statistics 
+
+apply(f, 1, cellStats)
+
+f <-as(vul_stack,"Raster")
+
+a<-cellStats(f, stat='mean', na.rm=TRUE)
+b<-cellStats(f, stat='max', na.rm=TRUE)
+c<-cellStats(f, stat='min', na.rm=TRUE)
+d<-cellStats(f, stat='sd', na.rm=TRUE)
+e<-cellStats(f, stat='skew', na.rm=TRUE)
+
+
+g <- sku(f$V_Access,excess = TRUE)
+h <- sku(f$V_SWF,excess = TRUE)
+i <- sku(f$V_Organisms,excess = TRUE)
+j <- sku(f$V_Fertile,excess = TRUE)
+k <- sku(f$V_Wasserverh,excess = TRUE)
+l <- sku(f$V_Gruenld,excess = TRUE)
+m <- sku(f$V_Div_Plant,excess = TRUE)
+n <- sku(f$V_Sealed,excess = TRUE)
+o <- sku(f$V_Disadva,excess = TRUE)
+p <- sku(f$V_Gastro,excess = TRUE)
+q <- sku(f$V_Landschutz,excess = TRUE)
+r <- sku(f$V_Naturschutz,excess = TRUE)
+s <- sku(f$V_Wasser,excess = TRUE)
+
+kurtosis <- c(g,h,i,j,k,l,m,n,o,p,q,r,s)
+#define variable for naming of rows
+vars <- names(subset)
+
+#Assembling the single columns to one table
+drought_indicators_statistics<-data.frame(
+  "mean"=a,
+  "max"=b,
+  "min"=c,
+  "std"=d,
+  "skewness"=e,
+  "kurtosis"=kurtosis
+  )
+
+#Visualizing the table
+kable(drought_indicators_statistics, digits=2, col.names = c("mean","max","min","std","skewness","kurtosis")) %>% kable_styling(bootstrap_options = c("striped","bordered"), full_width = F) %>% 
+  add_header_above(c("Layer Statistics" = 7))
+
+```
+
+
+
+
+```{r Histograms, message=FALSE, warning =FALSE, fig.height=12}
+# Create histograms 
+#Plot a histogram of original data
+
+hist(subset, breaks = 25)#,zlim = c(0,50))
+
+#Info histogram and bin settings
+#https://www.earthdatascience.org/courses/earth-analytics/lidar-raster-data-r/plot-raster-histograms-r/
+
+``` 
+
+
+```{r Boxplot, echo=FALSE, message=FALSE, fig.width=10,fig.height=6}
+# Create boxplot 
+
+labels<-c("Population_density","Ecosystem_services","Land_use","Diversity_plants_agricult","Permanent_crops","Transport_infrastr")
+par(mar=c(2,10,1,1))
+
+#Boxplot original data all indicators
+boxplot(subset,
+main = "Boxplots RESPECT Drought data",
+xlab = "Value Range",
+#ylab = "Indicators",
+col = "orange",
+border = "brown",
+horizontal = TRUE,
+notch = FALSE,
+varwidth = TRUE,
+cex.axis=0.8,
+las = 1
+)
+
+gplot(subset) + geom_tile(aes(fill = value)) + facet_wrap(~variable)+coord_equal()
+
+
+```
+
+
+```{r TIFF correlation matrix}
+
+# Correlation Matrix Table ALL Data
+data_rast <-  as(subset,"Raster")
+#Calculating correlation matrix from all rasters
+correlation<-raster.cor.matrix(data_rast, method = "spearman")
+raster.cor.plot(data_rast)$cor.mds.plot
+raster.cor.plot(data_rast)$cor.heatmap
+
+
+#Visualizing the table
+kable(correlation,digits=2) %>% kable_styling(bootstrap_options = c("striped","bordered"), full_width = T)
+
+corrplot(as.matrix(correlation), method = "square", type = "lower", sig.level = 0.05,  tl.cex = 0.7, tl.col = "black", tl.srt = 45, number.cex = 0.7, addCoef.col = TRUE, addCoefasPercent = TRUE, order = "FPC")
+
+
+#Step 1: converts the R table into a dataframe
+export_tab<-as.data.frame.matrix(correlation)
+#Step 2: Exports the DataFrame to CSV
+#write.csv(export_tab, "C:\\Users\\b1012771\\Desktop\\hotspotdata_20201013_correlation.csv",row.names = TRUE)
+
+X<-wagesmicrodata[,3:12]
+library(GGally)
+ggpairs(subset)
+
+```
+
+
+

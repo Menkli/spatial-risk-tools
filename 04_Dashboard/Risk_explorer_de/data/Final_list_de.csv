@@ -1,0 +1,37 @@
+ID;Domäne;Wirkungskettenelement;Indikatorname;Jahr;Beschreibung;Erhalten durch
+1;Vulnerabilität;Andere Kosten, andere Einnahmequellen;Erreichbarkeit;2015;Erreichbarkeit von Einzelhandel, Bildungseinrichtungen, öffentliche Sicherheit, Gesundheitsversorgung, Freizeiteinrichtungen. Gemessen an der kürzesten Distanz entlang des Straßennetzwerkes.;RESPECT
+2;Vulnerabilität;Nährstoffe im Boden, Pflanzenverfügbares Wasser;Bodenfunktionsbewertung: Lebensraum für Bodenorganismen;2015;Bodenorganismen sorgen für den Aufbau von Humus, Abbau von Schadstoffen, Aufbau einer stabilen Bodenstruktur oder Erhalt der Bodenfruchtbarkeit und sind als Grundlage für gesunde Böden unersetzlich. Hier bewertet ist der potentielle Gehalt eines Bodens an mikrobieller Biomasse. Dieser wird damit als Indikator für das Bodenleben insgesamt herangezogen.;Online
+3;Vulnerabilität;Nährstoffe im Boden;Bodenfunktionsbewertung: Natürliche Bodenfruchtbarkeit;2015;"Auf Böden mit einer hohen natürlichen Ertragsfähigkeit können bessere Erträge mit einem vergleichsweise geringen Einsatz
+von Düngemitteln ohne künstliche Bewässerung erzielt werden, als auf Böden mit geringerer natürlicher Bodenfruchtbarkeit. Die Betrachtung der Bodenteilfunktion geht der Frage
+nach, wie hoch das natürliche Ertragspotential des betrachteten Bodens einzustufen ist.";Online
+4;Vulnerabilität;Pflanzenverfügbares Wasser;Bodenkarte: Wasserverhältnisse;2019;Beschreibung der durchschnittlichen Wasserverfügbarkeit der Bodenform für die Pflanzen. (Quelle: Digitale Bodenkarte - Bodeneigenschaften);Online
+5;Vulnerabilität;Menge und Qualität der Ernte;Bodenkarte: Wertigkeit Grünland;2019;Ausschließlich empirische Einschätzung durch den jeweiligen Kartierer (Digitale Bodenkarte - Bodenwertigkeit);Online
+6;Vulnerabilität;Fruchtwechsel;Diversität der Anbauarten;2016;"Der Indikator wurde bereits in der Regional Futures Studie als Sensitivitätsindikator verwendet (Chiari et al. 2013; Lindenthal et al. 2014; Radinger?Peer et al. 2015): Je diverser die Kultur um so weniger Vulnerabel, z.B. im Bezug auf Trockenheit. Der Diversiätsgrad wurde mittels des Shannon diversity Index (SHDI) (Adamczyk and Tiede 2017) für jede 1km² Zele berechnet. Der zugrundeliegende Datensatz ist der Schläge Datensatz von INVEKOS.";RESPECT
+7;Vulnerabilität;Versiegelter Boden, Renaturierungen;Veränderung der Bodenversiegelung;2006-2012;Erfasst den Prozentsatz und die Veränderung der Bodenversiegelung. Versiegelte/undurchlässige Flächen sind dadurch gekennzeichnet, dass die ursprüngliche (halb-)natürliche Bodenbedeckung oder Wasseroberfläche durch eine künstliche, oft undurchlässige Abdeckung ersetzt wird. ;Online
+8;Vulnerabilität;Gefälle;Landwirtschaftlich benachteiligte Gebiete;2019;Die Betriebe in diesen Regionen sind mit denen in sogenannten Gunstlagen nicht wettbewerbsfähig.;Online
+9;Vulnerabilität;Schatten, Wind;Kleinräumige Gehölzstrukturen;2015;Kleinräumige Gehölzstrukturen sind wichtige Vektoren für die biologische Vielfalt und liefern Informationen über die Fragmentierung von Lebensräumen mit direktem Potenzial für die Wiederherstellung und stellen gleichzeitig eine Verbindung zum Schutz vor Gefahren und zur grünen Infrastruktur her. Der Datensatz der kleinräumige Gehölzstrukturen (Small Woody Features, SWFs) enthält lineare und kleinflächige Elemente, wird aber nicht nach Bäumen, Hecken, Büschen und Gebüsch unterschieden.;Online
+10;Vulnerabilität;Alternative Einkommensquellen;Beherbergungs- und Gastronomiebetriebe;2013;"Alternative Einkommensquellen stellen ein wichtiges Instrument zur Abmilderung  finanzieller Verlusten in der landwirtschaft dar. Das Modell ""Urlaub am Bauernhof"" ist weitverbreitet. ";RESPECT
+11;Vulnerabilität;Permanente Bodenbedeckung;Landschaftsschutzgebiete und Naturschutzgebiete;2015;Landschaftsschutzgebiete sind Gebiete außerhalb geschlossener Ortschaften, die entweder eine besondere landschaftliche Schönheit aufweisen oder für die Erholung von Bedeutung sind. Naturschutzgebiete sind Gebiete außerhalb geschlossener Ortschaften mit weitgehender Ursprünglichkeit oder solche, die gefährdete Tier- oder Pflanzenarten bzw. derartige Lebensgemeinschaften aufweisen. ;Online
+12;Vulnerabilität;Künstliche Bewässerung;Nutzwasserversorgung;unbekannt;Der Indikator beeinhaltet die Wasserpunkte der Kategorien 'Trink-und Nutzwasserversorgung für betriebliche Versorgung' und 'Nutzwasserversorgung'.;Manuel Widauer
+13;Expoistion;Betriebsgröße, Gewinn, Viehbestand;Einwohner nach Wirtschaftszweig: Primärer Sektor;2013;Der Indikator beschreibt den Prozentsatz der Bevölkerung pro 1km² Zelle, die dem primären Sektor zuzuordnen sind. ;RESPECT
+14;Expoistion;Betriebsgröße, Gewinn, Viehbestand;Landwirtschaftlich genutzte Flächen (Feldstücke);2020;Der Layer umfasst alle von den AntragstellerInnen erfassten Feldstücken, welche als Grundlage der Förderabwicklung dienen. Ein Feldstück ist eine im Bundesgebiet gelegene, eindeutig abgrenzbare Bewirtschaftungseinheit eines Betriebsinhabers mit nur einer Nutzungsart gemäß § 16 der Verordnung des zuständigen Bundesministeriums mit horizontalen Regeln für den Bereich der Gemeinsamen Agrarpolitik (Horizontale GAP-Verordnung) StF: BGBl. II Nr. 100/2015, die im Geographischen Informationssystem (GIS) als Polygon digitalisiert ist und aus Schlägen besteht.;Online
+15;Klimagefahr;Niederschlag;Variabilität RCP 4.5 Delta 2021-2050;1970-2100;"Bias corrected (scaled distribution mapping) data of the EURO-CORDEX model CNRM-CERFACS-CNRM-CM5_rcp85_r1i1p1_CNRM-ALADIN53
+using observational data from GPARD (ZAMG).
+Historical and future projection under the RCP4.5 scenario.       dataset: OKS15
+        scenario: RCP8.5
+        location: austria
+        period1: 1970-2100
+        method: aggr_index
+        aggregation_period: MS
+        RCM_list: CNRM-CM5-s-CCLM-s-r1i1p1,CNRM-CM5-s-ALADIN-s-r1i1p1,CNRM-CM5-s-RCA-s-r1i1p1,EC-EARTH-s-CCLM-s-r12i1p1,EC-EARTH-s-RCA-s-r12i1p1,EC-EARTH-s-RACMO-s-r1i1p1,EC-EARTH-s-RACMO-s-r12i1p1,EC-EARTH-s-HIRHAM5-s-r3i1p1,IPSL-CM5A-MR-s-WRF-s-r1i1p1,IPSL-CM5A-MR-s-RCA-s-r1i1p1,HadGEM2-ES-s-CCLM-s-r1i1p1,HadGEM2-ES-s-RCA-s-r1i1p1,MPI-ESM-LR-s-CCLM-s-r1i1p1,MPI-ESM-LR-s-REMO-s-r1i1p1,MPI-ESM-LR-s-RCA-s-r1i1p1,MPI-ESM-LR-s-REMO-s-r2i1p1,NorESM1-M-s-HIRHAM5-s-r1i1p1
+        inter-model-statistics: median";Klaus Haslinger/Janos Tordai
+16;Klimagefahr;Niederschlag;Variabilität RCP 4.5 Delta 2071-2100;1970-2100;Siehe Zeile 15;Klaus Haslinger
+17;Klimagefahr;Niederschlag;Variabilität RCP 8.5 Delta 2021-2050;1970-2100;Siehe Zeile 15;Klaus Haslinger
+18;Klimagefahr;Niederschlag;Variabilität RCP 8.5 Delta 2071-2100;1970-2100;Siehe Zeile 15;Klaus Haslinger
+23;Vulnerabilität;Schädlingsbefall;-;-;"""Eine Verortung von Schädlingsbefall im Acker und Gemüsebau findet leider nicht statt. Es ist diesbezüglich auch nichts geplant ""  (Leist, 08.03.21)";
+24;Vulnerabilität;Saatgutqualität;-;-;;
+25;Vulnerabilität;Versichert;-;-;;
+26;Vulnerabilität;Subventionen;-;-;;
+27;Vulnerabilität;Benutzung von Dünger;-;-;;
+28;Exposition;Viehbestand;-;-;"""Es gibt im SAGISonline eine Verortung von tierhaltenden Betrieben. Diese beruhen auf den AMA und VIS-Daten. Leider sind diese ausschließlich für die „Tierseuchenbekämpfung“ verfügbar und dürfen sonst nicht genutzt werden.""  (Leist, 08.03.21)";
+29;Exposition;Betriebsgröße;-;-;;

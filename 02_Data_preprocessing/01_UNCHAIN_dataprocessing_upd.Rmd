@@ -1,0 +1,1114 @@
+---
+title: "UNCHAIN - Austria drought case study - Data preprocessing"
+author: "Linda Menk"
+date: "19 3 2021"
+#output: rmdformats::readthedown
+output: rmdformats::material
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, error = FALSE, warning = FALSE)
+
+```
+# Purpose of the script  
+This script conducts any necessary data integration steps to make the data fit for geonization. 
+All result datasets will be in raster format and can be exported as .tif files in the end.  
+
+
+# Data  
+
+The following data is processed in this script.  
+```{r data sources, echo=FALSE}
+data_sources <- data.frame(Indicator = c("Accessibility",
+                                     "Soil function evaluation: Habitat for soil organsism",
+                                     "Soil function evaluation: Natural soil fertility",
+                                     "Soil map: Water conditions",
+                                     "Soil map: Gassland quality",
+                                     "Diversity of Plants in Agriculture",
+                                     "Homesteads" ,  
+                                     "Imperviousness change",
+                                     "Agriculturally disadvantaged areas",
+                                     "Small Woody Features", 
+                                     "Inhabitants per sector: Primary sector",
+                                     "Accomodation and gastronomy",
+                                     "Landscape- and Lake-conservation",
+                                     "Nature reserves",
+                                     "Forested Areas",
+                                     "Industrial Water supply"),
+                          
+                           Year = c("2015","2015", "2015", "2019", "2019", "2016(?)", "2019", "2006-2012", "2019", "2015","2013","2013","2015","2015","2016","unnkown"),
+                           Data_source = c("http://www.statistik.at/web_en/classifications/regional_breakdown/urban_rural/index.html",
+                                      "https://www.data.gv.at/katalog/en/dataset/bodenfunktionsbewertung-land-salzburg",
+                                      "https://www.data.gv.at/katalog/en/dataset/bodenfunktionsbewertung-land-salzburg",
+                                      "https://bfw.ac.at/rz/bfwcms.web?dok=9644",
+                                      "https://bfw.ac.at/rz/bfwcms.web?dok=9644",
+                                      "RESPECT",
+                                      "https://www.data.gv.at/katalog/dataset/6936ee45-ab14-4f61-8fef-1ba34789d743",
+                                      "https://land.copernicus.eu/pan-european/high-resolution-layers/imperviousness",
+                                      "https://www.bmlrt.gv.at/land/laendl_entwicklung/berggebiete-benachteiligte_gebiete/benachteiligte_geb.html",
+                                      "https://land.copernicus.eu/pan-european/high-resolution-layers/small-woody-features/small-woody-features-2015?tab=metadata",
+                                      "http://www.statistik.at/web_de/klassifikationen/regionale_gliederungen/regionalstatistische_rastereinheiten/index.html",
+                                      "http://www.statistik.at/web_de/klassifikationen/regionale_gliederungen/regionalstatistische_rastereinheiten/index.html",
+                                      "https://service.salzburg.gv.at/ogd/client/showDetail/8fca789d-988f-404a-97d8-a8c2d417d766",
+                                      "https://service.salzburg.gv.at/ogd/client/showDetail/f035e1ef-9b98-4d77-b2ad-1daf6013e6b3",
+                                      "https://service.salzburg.gv.at/ogd/client/showDetail/d9ca9622-5be5-444a-b6f3-1beb6d11b755",
+                                      "Sent via email"
+                                      ))
+
+knitr::kable(data_sources, format = "html", caption = "Content and sources of the UNCHAIN drought case study (2021)")
+  
+```
+
+```{r load packages, echo =FALSE, message = FALSE}
+# Processing
+library(terra)
+library(raster)
+library(rasterVis)
+
+# Plotting
+library(rasterly)
+library(plotly)
+library(kableExtra)
+library(knitr)
+
+# Pipe operator
+library(magrittr)
+library(dplyr)
+```
+
+# Preparation  
+## Load master mask  
+Loads a raster that delineates the area of interest. It has a resolution of 1km and is in the right crs. This master mask will be used to format all other datasets to 1km resolution and to clip them to the boudaries of our aoi.    
+```{r load mask, eval = FALSE}
+
+# Loads mask 1km/cell to clip larger datasets to. The mask has exactly the extent we aim at. In the initial dataset the cells have a resolution of 100x100m. We aim at a resolution of 1km, therefore we aggregate the cells x10. However, we keep the Mask_100m for rasterizing the "Bodenfunktionsbewertung" Polygons later on. 
+
+Mask_100m <- rast("R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\Mask_Salzburg_1km\\Mask_Salzburg_1km.tif")
+Mask <- aggregate(x = Mask_100m, fact=10, fun=mean)
+
+plot(Mask)
+
+```
+
+```{r prepare agricultural mask}
+crs_all<-"+proj=laea +lat_0=52 +lon_0=10 +x_0=4321000 +y_0=3210000 +ellps=GRS80 +units=m +no_defs"
+
+Agri_mask <- vect("R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\Drought_data_Salzburg\\Bodenfunktionsbewertung_Shapefile\\Bodenfunktionsbewertung\\Bodenfunktionsbewertung.shp") %>% 
+  project(crs_all)
+
+Agri_mask$yes <- 20
+
+Mask <- rast("R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\Mask_Salzburg_1km\\Mask_Salzburg_1km.tif") %>% 
+  aggregate(fact = 10, fun = mean)
+
+Agri_rast<-rasterize(Agri_mask, Mask, field ="yes", touches=TRUE)
+
+
+plot(Agri_rast)
+
+Agri_rast <- cover(Agri_rast, Mask)
+Agri_rast[is.na(Agri_rast)] <- 255
+Agri_rast[(Agri_rast == -1)] <- 255
+Agri_rast[(Agri_rast == 20)] <- -1
+Agri_rast[(Agri_rast == 255)] <- NA
+
+Mask <- Agri_rast
+plot(Mask)
+
+Mask_100m <- rast("R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\Mask_Salzburg_1km\\Mask_Salzburg_1km.tif")
+Agri_rast_100m <- rasterize(Agri_mask, Mask_100m, field = "yes", touches = TRUE)
+plot(Agri_rast_100m)
+Agri_rast_100m <- cover(Agri_rast_100m, Mask_100m)
+Agri_rast_100m[is.na(Agri_rast_100m)] <- 255
+Agri_rast_100m[(Agri_rast_100m == -1)] <- 255
+Agri_rast_100m[(Agri_rast_100m == 20)] <- 1
+Agri_rast_100m[(Agri_rast_100m == 255)] <- NA
+plot(Agri_rast_100m)
+Mask_100m <- Agri_rast_100m
+```
+
+
+
+
+
+## For the calculation of percentages based on population per grid cells
+```{r population raster}
+
+Pop <- vect("R:\\02_PROJECTS\\01_P_330001\\79_RESPECT\\03_Work\\WP2\\Data\\Raster_STATAT\\Wohnbevoelkerung_nach_Alter.shp") %>% 
+  project(crs_all)
+
+Pop_rast <- rasterize(Pop, Mask, "POP")
+
+plot(Pop_rast)
+
+```
+
+## Path for Exports 
+```{r export}
+
+export_vul <- "R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\00_Final_data\\01_Vulnerability"
+export_exposure <- "R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\00_Final_data\\02_Exposure"
+export_hazard <- "R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\00_Final_data\\03_Hazard"
+
+```
+
+# 01_Hazard: SPI  
+```{r Diversity of plants in agricutlture, eval=FALSE}
+
+path <- "R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\01_ZAMG_SPARTACUS_Monthly\\Output\\Data\\"
+
+hazard_prep <- function(file, smin, smax, output, names){ 
+  x <- rast(paste0(path,file)) %>%
+  terra::project(y=crs_all) %>% 
+  resample(Mask, method="bilinear") %>% 
+  mask(Mask) %>% 
+  stretch(minv = 0, maxv = 254, smin = smin, smax = smax)
+  
+  f <- file.path(export_hazard,output)
+  writeRaster(x, f, names = names, overwrite = TRUE)
+}
+  
+SPI3_Sep_2021_2050_RCP45 <- hazard_prep("SPI_delta_2021_2050_RCP45.tif", -0.9, 0.5333333, "H_01_SPI3_Sep_2021_2050_RCP45.tif", "H_SPI3_Sep_2021_2050_RCP45")  
+SPI3_Sep_2071_2100_RCP45 <- hazard_prep("SPI_delta_2071_2100_RCP45.tif", -1.066667, 0.5, "H_02_SPI3_Sep_2071_2100_RCP45.tif", "H_SPI3_Sep_2071_2100_RCP45")
+SPI3_Sep_2021_2050_RCP85 <- hazard_prep("SPI_delta_2021_2050_RCP85.tif", 0.01, 0.8593375, "H_03_SPI3_Sep_2021_2050_RCP85.tif", "H_SPI3_Sep_2021_2050_RCP85")
+SPI3_Sep_2071_2100_RCP85 <- hazard_prep("SPI_delta_2071_2100_RCP85.tif", -0.2044444, -0.01, "H_04_SPI3_Sep_2071_2100_RCP85.tif", "H_SPI3_Sep_2071_2100_RCP85")
+
+# Visualization
+hazard_viz <- function (output_haz_prep, title){
+    y <- raster(output_haz_prep) %>%
+    gplot() + 
+    geom_tile(aes(fill=value), alpha=0.8)+ 
+    scale_fill_gradient2(low = '#4cbb17', mid = '#f0e130', high = '#b7410e', midpoint=128) + 
+    coord_equal()+
+    ggtitle(title) 
+
+ggplotly(y, tooltip= "value")
+}
+
+SPI_2021_2050_RCP45_rast <- hazard_viz(SPI3_Sep_2021_2050_RCP45, "SPI delta 2021-2050 RCP 4.5") 
+SPI_2071_2100_RCP45_rast <- hazard_viz(SPI3_Sep_2071_2100_RCP45, "SPI delta 2071-2100 RCP 4.5") 
+SPI_2021_2050_RCP85_rast <- hazard_viz(SPI3_Sep_2021_2050_RCP85, "SPI delta 2021-2050 RCP 8.5") 
+SPI_2071_2100_RCP85_rast <- hazard_viz(SPI3_Sep_2071_2100_RCP85, "SPI delta 2071-2100 RCP 8.5") 
+
+```
+# 02_Hazard: Variability
+
+```{r Variability}
+
+path <- "R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\01_ZAMG_SPARTACUS_Monthly\\Output\\Data\\"
+
+hazard_prep <- function(file, output, names){ 
+  x <- rast(paste0(path,file)) %>%
+  terra::project(y=crs_all) %>% 
+  resample(Mask, method="bilinear") %>% 
+  mask(Mask) 
+  
+  x <- stretch(x, minv = 0, maxv = 254, smin = minmax(x)[1,], smax = minmax(x)[2,])
+  x[is.na(x)] <- 255
+  f <- file.path(export_hazard,output)
+  writeRaster(x, f, names = names, overwrite = TRUE)
+}
+  
+SPI3_Sep_2021_2050_RCP45 <- hazard_prep("SPI_delta_2021_2050_RCP45.tif", "H_01_SPI3_Sep_2021_2050_RCP45.tif", "H_SPI3_Sep_2021_2050_RCP45")  
+SPI3_Sep_2071_2100_RCP45 <- hazard_prep("SPI_delta_2071_2100_RCP45.tif", "H_02_SPI3_Sep_2071_2100_RCP45.tif", "H_SPI3_Sep_2071_2100_RCP45")
+SPI3_Sep_2021_2050_RCP85 <- hazard_prep("SPI_delta_2021_2050_RCP85.tif", "H_03_SPI3_Sep_2021_2050_RCP85.tif", "H_SPI3_Sep_2021_2050_RCP85")
+SPI3_Sep_2071_2100_RCP85 <- hazard_prep("SPI_delta_2071_2100_RCP85.tif", "H_04_SPI3_Sep_2071_2100_RCP85.tif", "H_SPI3_Sep_2071_2100_RCP85")
+
+# Visualization
+hazard_viz <- function (output_haz_prep, title){
+    y <- raster(output_haz_prep) %>%
+    gplot() + 
+    geom_tile(aes(fill=value), alpha=0.8)+ 
+    scale_fill_gradient2(low = '#4cbb17', mid = '#f0e130', high = '#b7410e', midpoint=128) + 
+    coord_equal()+
+    ggtitle(title) 
+
+ggplotly(y, tooltip= "value")
+}
+
+SPI_2021_2050_RCP45_rast <- hazard_viz(SPI3_Sep_2021_2050_RCP45, "SPI delta 2021-2050 RCP 4.5") 
+SPI_2071_2100_RCP45_rast <- hazard_viz(SPI3_Sep_2071_2100_RCP45, "SPI delta 2071-2100 RCP 4.5") 
+SPI_2021_2050_RCP85_rast <- hazard_viz(SPI3_Sep_2021_2050_RCP85, "SPI delta 2021-2050 RCP 8.5") 
+SPI_2071_2100_RCP85_rast <- hazard_viz(SPI3_Sep_2071_2100_RCP85, "SPI delta 2071-2100 RCP 8.5") 
+
+
+```
+
+  
+# Accessibility  
+
+"Accessibility was described as the ease with which a good or service can be reached by the resident population. In a first step, this was measured considering the distance (shortest travel time) along the road network by private car from an origin (resident population) to the nearest facility (infrastructure). This step was implemented in a Geographic Information System using georeferenced input datasets (demographic and infrastructure data) as well as a road network for the calculation of distances. In a second step, the distances to a range of infrastructure facilities were aggregated to indicators of accessibility in an environment for statistical computing." (R:\\02_PROJECTS\\01_P_330001\\79_RESPECT\\03_Work\\WP2\\Data\\Accessibility_STATAT\\project_report_accessibility.pdf)
+
+- [x] CRS [+proj=laea +lat_0=52 +lon_0=10 +x_0=4321000 +y_0=3210000 +ellps=GRS80 +units=m +no_defs]   
+- [x] Cropped  
+- [x] Rasterized    
+- [x] 1km resolution  
+- [x] High values representing high vulnerability  
+- [x] Stretched to 8-bit    
+- [x] Make N/A 255
+- [x] Plot  
+
+```{r accessibility, echo=TRUE}
+
+# Load data
+Access<-vect("R:\\02_PROJECTS\\01_P_330001\\79_RESPECT\\03_Work\\WP2\\Data\\Accessibility_STATAT\\Accessibility_Grid.shp") %>% 
+  rasterize(Mask, "results__1") * -1 
+
+Access <- terra::mask(Access, Mask)
+min <- minmax(Access)[1,]
+max <- minmax(Access)[2,]
+
+Access <- stretch(Access, minv=0, maxv=254, smin=min[[1]], smax=max[[1]])
+
+Access[is.na(Access)] <- 255
+
+# Visualization
+Access_rast <- raster(Access)
+access <- gplot(Access_rast) + geom_tile(aes(fill=value), alpha=0.8) + coord_equal()+ scale_fill_gradient2(low = '#b7410e', mid = '#f0e130', high = '#4cbb17', midpoint=128)+
+ ggtitle("Accessibility")
+ggplotly(access, tooltip= "value")
+
+# Export 
+f <- file.path(export_vul,"V_01_Accessibility.tif")
+writeRaster(Access, f, names = "V_access", overwrite = TRUE)
+
+```
+
+
+# Soil function evaluation: Habitat for soil organsism & Natural soil fertility  
+
+- [x] CRS  
+- [x] Reclassified [5a &rarr; 5, 5b &rarr; 6]  
+- [x] Cropped    
+- [x] Rasterized    
+- [x] 1km resolution  
+- [x] High values representing high vulnerability  
+- [x] Stretched to 8-bit  
+- [x] Take care of N/A  
+- [x] Plot  
+
+```{r bodenfunktion}
+
+Bodenfkt<-vect("R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\Drought_data_Salzburg\\Bodenfunktionsbewertung_Shapefile\\Bodenfunktionsbewertung\\Bodenfunktionsbewertung.shp") %>% 
+  project(crs_all)  
+  
+
+# Soil fertility: Reclassify values 5a & 5b to numbers
+#unique(Bodenfkt$BTF13b)
+Bodenfkt$BTF13b[Bodenfkt$BTF13b=="5a"] <- 5
+Bodenfkt$BTF13b[Bodenfkt$BTF13b=="5b"] <- 6
+
+# Cast characters to integers
+Bodenfkt$BTF13b <- as.integer(Bodenfkt$BTF13b)
+Bodenfkt$BTF12b <- as.integer(Bodenfkt$BTF12b)
+
+
+# Soil organisms----------------
+# Rasterize and plot soil organisms
+# We rasterize the Polygon dataset based on a 100x100m grid. This is small enough to capture the Bodenfunktionsbewertungs Polygons. Then we aggregate by mean. This gives a more appropriate and diverse image of the dataset. 
+
+Organisms <- rasterize(Bodenfkt,Mask_100m,"BTF12b") 
+  
+#Organisms <- cover(Organisms, Mask_100m, values = NA) * - 1
+Organisms <- mask(Organisms,Mask_100m)*-1
+
+# -3 - mittel --> 127
+# -4 - hoch --> 64
+# -5 - sehr hoch --> 0
+#Organisms[(Organisms == 1)] <- 0
+Organisms[(Organisms == 2147483648)] <- 0
+Organisms[(Organisms == -3)] <- 127
+Organisms[(Organisms == -4)] <- 64
+Organisms[(Organisms == -5)] <- 0
+Organisms[is.na(Organisms)] <- 255
+
+# Stretch to 8-bit
+
+# Aggregate from 100m cells size to 1km by using the mean of the cells within each bigger cell. 
+Organisms <- aggregate(Organisms, fact=10, fun=mean)
+
+# Visualization
+Organisms_rast <- raster(Organisms)
+
+orga <- gplot(Organisms_rast) + geom_tile(aes(fill=value), alpha=0.8) + coord_equal()+ scale_fill_gradient2(low = '#b7410e', mid = '#f0e130', high = '#4cbb17', midpoint=128) +
+ ggtitle("Habitat for soil organisms")
+
+ggplotly(orga, tooltip= "value")
+
+
+# Soil fertility----------------
+# Rasterize and plot soil fertility
+Fertility <- rasterize(Bodenfkt, Mask_100m, "BTF13b")
+
+#Fertility <- cover(Fertility, Mask_100m, values = NA) * -1
+Fertility <- mask(Fertility, Mask_100m)*-1
+# Turn values around so that high values represent high vulnerability  
+
+
+# -1 - sehr gering - 255
+# -2 - gering - 230
+# -3 - mittel - 173
+# -4 - hoch - 115
+# -5a - sehr hoch - 58
+# -5b - sehr hoch (10% beste Böden) - 0
+#Fertility[(Fertility == 1)]<-0
+Fertility[(Fertility == -1)] <- 255
+Fertility[(Fertility == -2)] <- 230
+Fertility[(Fertility == -3)] <- 173
+Fertility[(Fertility == -4)] <- 115
+Fertility[(Fertility == -5)] <- 58
+Fertility[(Fertility == -6)] <- 0
+Fertility[is.na(Fertility)] <- 255
+
+Fertility <- aggregate(x=Fertility, fact=10, fun=mean)
+
+# Visualization
+Fertility_rast <- raster(Fertility)
+
+fert <- gplot(Fertility_rast) + geom_tile(aes(fill=value), alpha=0.8) + coord_equal() + scale_fill_gradient2(low = '#b7410e', mid = '#f0e130', high = '#4cbb17', midpoint=128)+
+ ggtitle("Natural soil fertility")
+ggplotly(fert, tooltip= "value")
+
+#-----------------
+# Export 
+org <- file.path(export_vul,"V_02_Soilorganisms.tif")
+terra::writeRaster(Organisms, org, names = "V_Organisms", overwrite = TRUE)
+
+fert <- file.path(export_vul,"V_03_Soilfertility.tif")
+terra::writeRaster(Fertility, fert, names = "V_Fertility", overwrite = TRUE)
+```
+
+
+# Soil map: Water conditions & Grassland quality  
+
+- [x] CRS  
+- [x] Cropped    
+- [x] Rasterized    
+- [x] 1km resolution  
+- [x] High values representing high vulnerability  
+- [x] Stretched to 8-bit   
+- [x] Take care of N/A  
+- [x] Plot   
+
+```{r read}
+
+# Grünland = 1 = geringwertig / 5 = hochwertig
+# Wasserverhältnisse = Je höher desto besser versorgt
+
+BoKa<-vect("R:\\02_PROJECTS\\01_P_330001\\79_RESPECT\\03_Work\\WP2\\Data\\boka_1km_etrs89_2016\\boka_1km_etrs89_2016\\boka_1km_2016.shp")
+
+BoKa$wasser <- as.integer(BoKa$wasser)
+
+
+# Make raster from vector file, using the extent and resolution from the mask -- That worked really well!
+Wasserverh <- rasterize(BoKa, Mask, "wasser")*-1
+Wasserverh <- terra::mask(Wasserverh, Mask)
+#Wasserverh <- cover(Wasserverh, Mask, values = NA) * -1 
+Wasserverh <- stretch(Wasserverh, minv=0, maxv=254, smin=minmax(Wasserverh)[1,], smax=minmax(Wasserverh)[2,])
+
+Wasserverh[(Wasserverh == 0)] <- 255 # 0 stands for "uneinheitlich" and is therefore masked from the "good to bad" range
+#Wasserverh[(Wasserverh == 1)] <- 0
+Wasserverh[is.na(Wasserverh)] <- 255
+
+# Visualization
+# Wasserverhätnisse------
+Wasserverh_rast <- raster(Wasserverh)
+water <- gplot(Wasserverh_rast) + geom_tile(aes(fill = value), alpha = 0.8) + coord_equal()+ scale_fill_gradient2(low = '#4cbb17' , mid = '#f0e130', high = '#b7410e', midpoint = 128) +
+ ggtitle("Water conditions")
+ggplotly(water, tooltip= "value")
+
+#------------------------
+#Grünland
+BoKa$gruenl <- as.integer(BoKa$gruenl)
+
+Gruenl <- rasterize(BoKa, Mask, "gruenl")*-1
+Gruenl <- terra::mask(Gruenl, Mask)
+#Gruenl <- cover(Gruenl, Mask, values = NA) * -1
+Gruenl[(Gruenl == 2147483648)] <- 0
+
+Gruenl <- stretch(Gruenl, minv=0, maxv=254, smin=minmax(Gruenl)[1,], smax=minmax(Gruenl)[2,])
+
+#Gruenl[(Gruenl == 1)] <- 0
+Gruenl[is.na(Gruenl)] <- 255
+
+
+# Visualization
+#Grünlandwert-------
+Gruenl_rast <- raster(Gruenl)
+gruen <- gplot(Gruenl_rast) + geom_tile(aes(fill=value), alpha=0.8) + coord_equal()+ scale_fill_gradient2(low = '#4cbb17', mid = '#f0e130', high = '#b7410e', midpoint=128) +
+ ggtitle("Grassland quality")
+ggplotly(gruen, tooltip= "value")
+
+#-----------------
+# Export 
+was <- file.path(export_vul,"V_04_Wasserverh.tif")
+terra::writeRaster(Wasserverh, was, names = "V_Wasserverhaeltnisse", overwrite = TRUE)
+
+gruen <- file.path(export_vul,"V_05_Gruenland.tif")
+terra::writeRaster(Gruenl, gruen, names = "V_Gruenlandwert", overwrite = TRUE)
+```
+
+# Diversity of Plants in Agriculture  
+
+The diversity of plants in agriculture and forestry has been used as a sensitivity indicator in the Regional
+Futures study (Chiari et al. 2013; Lindenthal et al. 2014; Radinger‐Peer et al. 2015): The more diverse
+cultivation is, the less vulnerable it is, for example to droughts. For calculating the degree of diversity for each
+1 km² grid cell, we made use of the Shannon diversity index (SHDI) (Adamczyk and Tiede 2017). The input
+data was retrieved from INVEKOS. We included the different classes of cultures cultivated on fields to
+calculate the mentioned diversity index. (R:\02_PROJECTS\01_P_330001\79_RESPECT\03_Work\WP2\!Submission-Lucia\RESPECT_M2-2_description_composite_indicators_20180711_LL.pdf)  
+
+Anm (Linda): The mentioned input data from INVEKOS could be INVEKOS Feldstücke Österreich 2016 (https://www.data.gv.at/katalog/dataset/fdba4da7-259e-401e-a0ec-b959e5cdf893).   
+
+- [x] CRS  
+- [x] Cropped    
+- [x] Rasterized    
+- [x] 1km resolution  
+- [x] High values representing high vulnerability  
+- [x] Stretched to 8-bit   
+- [x] Take care of N/A  
+- [x] Plot  
+
+```{r Diversity of plants in agricutlture}
+# This raster it taken over as is from the RESPECT projects. Thus, it does not have to be projected.
+# Has to be clipped, though.
+Div_Plant <- rast("R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\DivPlantsAgri.tif")
+Div_Plant <- crop(Div_Plant, Mask)
+Div_Plant <- mask(Div_Plant, Mask)
+Div_Plant[is.na(Div_Plant)] <- 255
+
+
+# Visualization
+Div_Plant_rast <- raster(Div_Plant)
+plant <- gplot(Div_Plant_rast) + geom_tile(aes(fill=value), alpha=0.8) + coord_equal()+ scale_fill_gradient2(low = '#b7410e', mid = '#f0e130', high = '#4cbb17', midpoint=128)+
+ ggtitle("Diversity of plants in agriculture")
+ggplotly(plant, tooltip= "value")
+
+# Export 
+div <- file.path(export_vul,"V_06_Diversityplants.tif")
+raster::writeRaster(Div_Plant_rast, div, names = "V_DiversePlants", overwrite = TRUE)
+
+```
+
+
+# Accomodation and gastronomy  
+
+
+- [x] CRS    
+- [x] Cropped    
+- [x] Rasterized    
+- [x] 1km resolution  
+- [x] High values representing high vulnerability  
+- [x] Stretched to 8-bit   
+- [x] Take care of N/A
+- [x] Plot
+
+```{r Beherbergung und Gastronomie}
+
+Gastro_v <- vect("R:\\02_PROJECTS\\01_P_330001\\79_RESPECT\\03_Work\\WP2\\Data\\Raster_STATAT\\Arbeitsstaetten_nach_Wirtschaftsabschnitt.shp") %>% 
+  project(crs_all) 
+
+Gastro <- rasterize(Gastro_v, Mask, "OENACE_I") * -1 
+
+
+# Variables metadata stored in "R:\02_PROJECTS\01_P_330001\79_RESPECT\03_Work\WP2\Data\Raster_STATAT\20180412_zgis_1kmdatenMetadaten.xslx"
+# OENACE_I is "Beherbergung und Gastronomie"
+#BeherbergungGastro_rast<-terra::rasterize(BeherbergungGastro_reproj,Mask,"OENACE_I")
+
+Gastro <- mask(Gastro, Mask)
+Gastro <- stretch(Gastro, minv=0, maxv=254, smin=minmax(Gastro)[1,], smax=minmax(Gastro)[2,])
+Gastro[is.na(Gastro)] <- 255
+
+# Visualization
+Gastro_rast <- raster(Gastro)
+prim <- gplot(Gastro_rast) + geom_tile(aes(fill=value), alpha=0.8) + coord_equal()+ scale_fill_gradient2(low = '#4cbb17', mid = '#f0e130', high ='#b7410e' , midpoint=128)+ggtitle("Accomodation and gastronomy")
+ggplotly(prim, tooltip= "value")
+
+# !!!!!!!! Whats wrong with this Gastro thing?
+Gastro_perc <- rasterize(Gastro_v, Mask, "OENACE_I")
+Gastro_perc <- mask(Gastro_perc, Mask)
+GastroShare <- Gastro_perc/Pop_rast*100 #Inf?
+GastroShare_turn <- GastroShare*-1
+GastroShare_stretch<-stretch(GastroShare_turn, minv=0, maxv=254, smin=minmax(GastroShare_turn)[1,], smax=minmax(GastroShare_turn)[2,])
+GastroShare_stretch[is.na(GastroShare_stretch)] <- 255
+
+
+plot(Gastro_perc)
+plot(Pop_rast)
+plot(GastroShare)
+plot(GastroShare_stretch)
+#-----------------------
+# Export 
+acco_tot <- file.path(export_vul,"V_07_Accomodation_tot.tif")
+terra::writeRaster(Gastro, acco_tot, names = "V_Accomodations_tot", overwrite = TRUE)
+
+acco_perc <- file.path(export_vul,"V_07_Accomodation_perc.tif")
+terra::writeRaster(GastroShare_stretch, acco_perc, names = "V_Accomodations_perc", overwrite = TRUE)
+```
+
+# Imperviousness change 2006-2012
+
+- [x] CRS [+proj=laea +lat_0=52 +lon_0=10 +x_0=4321000 +y_0=3210000 +ellps=GRS80 +units=m +no_defs]   
+- [x] Cropped    
+- [x] Rasterized    
+- [x] 1km resolution  
+- [x] High values representing high vulnerability  
+- [x] Reclassify  
+- [x] Stretched to 8-bit   
+- [x] Take care of N/A  
+- [x] Plot  
+
+```{r Imperviousness change}
+impervious <- rast("R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\Imperviousness\\IMC_0612_020m_eu_03035_d03_full.tif") %>% 
+  project(Mask)
+
+impervious <- crop(impervious, Mask)
+impervious <- mask(impervious, Mask)
+# Reclassify
+# "is","becomes""
+# 100 = unverändert versiegelt
+# 201 = unverändert unversiegelt
+m <- c(100,255,  201,0)
+
+# Make a 2 column matrix from the reclassified vector (first column = "is", second column  = "becomes")
+rclmat<-matrix(m,ncol=2,byrow=TRUE)
+# Reclassify the original values. 
+impervious <- classify(impervious, rcl=rclmat, include.lowest=FALSE)
+
+# Make N/A values 255
+impervious[is.na(impervious)] <- 255
+
+# Visualization
+impervious_rast <- raster(impervious)
+imper <- gplot(impervious_rast) + geom_tile(aes(fill=value), alpha=0.8) + coord_equal()+ scale_fill_gradient2(low = '#4cbb17', mid = '#f0e130', high ='#b7410e' , midpoint=128)+ggtitle("Imperviousness change")
+ggplotly(imper, tooltip= "value")
+
+#--------------
+# Export 
+seal <- file.path(export_vul,"V_08_Imperviousness.tif")
+terra::writeRaster(impervious, seal, names = "V_Imperviousness", overwrite = TRUE)
+
+```
+
+# Agriculturally disadvantaged areas 
+
+- [x] CRS [+proj=laea +lat_0=52 +lon_0=10 +x_0=4321000 +y_0=3210000 +ellps=GRS80 +units=m +no_defs]   
+- [x] Cropped    
+- [x] Rasterized    
+- [x] 1km resolution 
+- [x] High values representing high vulnerability  
+- [x] Stretched to 8-bit   
+- [x] Take care of N/A  
+- [x] Plot 
+
+```{r benachteiligte Gebiete}
+#This one is a bit tricky, because it is nominal data. It is interesting to have it here, in order to distinguish between different structural areas. However it cannot be ranked like the other datasets. 
+
+Ben_Geb <- vect("R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\Benachteiligte_Gebiete\\BenGeb_6kat_2019_LAEA.shp") %>% 
+  project(crs_all)
+
+# 3 - Berggebiet / Naturräumlicher Teil im Berggebiet
+# 4 - Sonst. benachteiligte Gebiete
+# 5 - Kleines Gebiet
+# 6 - Übergangsgebiet
+
+Ben_Geb <- rasterize(Ben_Geb, Mask,"BENGEBCODE")
+Ben_Geb[is.na(Ben_Geb)]<- 20
+#Ben_Geb <- cover(Ben_Geb, Mask, values = NA)
+Ben_Geb <- mask(Ben_Geb, Mask)
+Ben_Geb[Ben_Geb == 3] <- 254
+Ben_Geb[Ben_Geb == 4] <- 254
+Ben_Geb[Ben_Geb == 5] <- 254
+Ben_Geb[Ben_Geb == 6] <- 254
+Ben_Geb[Ben_Geb == 20] <- 0
+Ben_Geb[is.na(Ben_Geb)] <- 255
+
+# Visualization
+Ben_Geb_rast <- raster(Ben_Geb)
+benach <- gplot(Ben_Geb_rast) + geom_tile(aes(fill=value), alpha=0.8) + coord_equal()+ scale_fill_gradient2(low = '#4cbb17', mid = '#f0e130', high ='#b7410e' , midpoint=128)+ggtitle("Agriculturally disadvantaged areas")
+ggplotly(benach, tooltip= "value")
+
+#----------------
+# Export 
+ben <- file.path(export_vul,"V_09_BenachteiligteGebiete.tif")
+terra::writeRaster(Ben_Geb, ben, names = "V_BenachteiligteGebiete", overwrite = TRUE)
+
+```
+
+# Small Woody Features  
+
+- [x] CRS [+proj=laea +lat_0=52 +lon_0=10 +x_0=4321000 +y_0=3210000 +ellps=GRS80 +units=m +no_defs]   
+- [x] Cropped    
+- [x] Rasterized    
+- [x] 1km resolution  
+- [x] High values representing high vulnerability  
+- [x] Reclassify  
+- [x] Stretched to 8-bit   
+- [x] Take care of N/A  
+- [x] Plot 
+
+Information: The reprojection gave erroneous results. Also, it took very long to finish. Workaround: In ArcGIS Pro, the tool "Mosaic to new raster" was used to combine the two rasters. The same tool also provided the opportunity to choose a crs, so it does not have to be reprojected here.
+The mosaiced raster as it came from ArcGIS Pro has a gap in it.
+```{r mosaic from Small Wooden Features}
+
+#Load the already mosaiced and projected swf dataset
+swf<-rast("R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\SmallWoodyFeatures\\swf_mosaic_reproj.tif")
+
+# Crop to mask extent
+swf <- crop(swf, Mask)
+
+# The reclassify function is also implemented in the terra package, same parameters
+# Make a vector with the reclassification values "from", "to", "becomes". We are only interested in the original values 1 and 3, which are being reclassified to 1. The rest of the values are reclassified to 0. 
+m <- c(0,0,0,  1,1,1,  2,2,0, 3,3,1, 4,255,0)
+# Make a 3 column matrix from the reclassified vector
+rclmat<-matrix(m,ncol=3,byrow=TRUE)
+
+# Reclassify the original values. 
+swf <- classify(swf, rcl=rclmat, include.lowest=FALSE)
+
+
+#The Small Woody Features dataset has an original resolution of 5m. Therefore it is here aggregated with the factor 200. 
+swf <- aggregate(x=swf, fact=200, fun=mean)*-1
+#swf <- swf * -1
+swf <- mask(swf, Mask)
+
+# Stretch to 8-bit 
+swf<-stretch(swf, minv=0, maxv=254, smin=minmax(swf)[1,], smax=minmax(swf)[2,])
+swf[is.na(swf)] <- 255
+hist(swf)
+# Visualization
+swf_rast <- raster(swf)
+# Here the gap between the two parts of the Masaic is removed
+swf_rast[,137] <- (swf_rast[,136]+swf_rast[,138])/2
+swf <- gplot(swf_rast) + geom_tile(aes(fill=value), alpha=0.8) + coord_equal()+ scale_fill_gradient2(low = '#b7410e', mid = '#f0e130', high ='#4cbb17' , midpoint=128)+ggtitle("Small woody features")
+ggplotly(swf, tooltip= "value")
+
+swf <- rast(swf_rast)
+
+#------------------------
+# Export 
+sw <- file.path(export_vul,"V_10_SWF.tif")
+terra::writeRaster(swf, sw, names = "V_SWF", overwrite = TRUE)
+```
+# Landscape- and lake-conservation area
+Gebiete außerhalb geschlossener Ortschaften von besonderer landschaftlicher Schönheit und/oder von Bedeutung für die Erholung als charakteristische Naturlandschaft oder naturnahe Kulturlandschaft. Die Ausweisung erfolgt durch Verordnung der Landesregierung. In allen Landschaftsschutzgebieten gilt die Allgemeine Landschaftsschutzverordnung (ALV).  Bestimmte Maßnahmen sind nur mit Bewilligung der Bezirksverwaltungsbehörde zulässig. (https://www.salzburg.gv.at/themen/natur/naturschutzrecht-2/naturschutzrecht-salzburg/gebietsschutz/landschaftsschutzgebiet)  
+
+- [x] CRS    
+- [x] Cropped    
+- [x] Rasterized    
+- [x] 1km resolution  
+- [x] High values representing high vulnerability  
+- [x] Stretched to 8-bit   
+- [x] Take care of N/A
+- [x] Plot
+
+255 <- not within AOI  
+254 <- Landschaftsschutzgebiete  
+0 <- within AOI but not a Landschaftsschutzgebiet  
+```{r Landschaftsschutz}
+
+Schutzgeb <- vect("R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\Naturschutz\\Landschaftsschutzgebiete_Shapefile\\Landschaftsschutzgebiete\\Landschaftsschutzgebiete.shp") %>% 
+  project(crs_all)
+
+
+Schutzgeb$yes <- 20
+
+# OENACE_I is not a vliad field name ?
+Schutzgeb <- rasterize(Schutzgeb, Mask, "yes")*-1
+Schutzgeb <- cover(Schutzgeb, Mask, values = NA) 
+Schutzgeb <- mask(Schutzgeb, Mask)
+
+Schutzgeb <- stretch(Schutzgeb, minv=0, maxv=254, smin=minmax(Schutzgeb)[1,], smax=minmax(Schutzgeb)[2,])
+Schutzgeb[Schutzgeb == 1] <- 0
+Schutzgeb[is.na(Schutzgeb)] <- 255
+
+#Naturschutz-----------------------------------
+Naturschutz <- vect("R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\Naturschutz\\Naturschutzgebiete_Shapefile\\Naturschutzgebiete\\Naturschutzgebiete.shp") %>% 
+  project(crs_all)
+
+Naturschutz$yes <- 20
+
+# OENACE_I is not a vliad field name ?
+Naturschutz <- rasterize(Naturschutz, Mask, "yes")*-1
+Naturschutz <- cover(Naturschutz, Mask, values = NA) 
+Naturschutz <- mask(Naturschutz, Mask)
+
+Naturschutz <- stretch(Naturschutz, minv=0, maxv=254, smin=minmax(Naturschutz)[1,], smax=minmax(Naturschutz)[2,])
+Naturschutz[is.na(Naturschutz)] <- 255
+
+#Joint Naturschutzgebiete and Landschaftsschutzgebiete
+join <- cover(Schutzgeb, Naturschutz, values = 254)
+
+# Visualization
+Schutz_rast <- raster(join)
+prim <- gplot(Schutz_rast) + geom_tile(aes(fill=value), alpha=0.8) + coord_equal()+ scale_fill_gradient2(low = '#4cbb17', mid = '#f0e130', high ='#b7410e' , midpoint=128)+ggtitle("Conservation area")
+ggplotly(prim, tooltip= "value")
+
+#-----------------
+# Export 
+ls <- file.path(export_vul,"V_11_Conservation.tif")
+terra::writeRaster(join, ls, names = "V_Conservation", overwrite = TRUE)
+```
+# Nature reserve
+
+Gebiete mit völliger bis weitgehender Ursprünglichkeit und/oder Gebiete, die seltene oder gefährdete Tier- oder Pflanzenarten oder solche Lebensgemeinschaften von Tieren oder Pflanzen aufweisen. Die Ausweisung erfolgt durch Verordnung der Landesregierung. Bestimmte Eingriffe in Naturschutzgebiete sind grundsätzlich verboten oder nur mit Bewilligung der Landesregierung zulässig.(https://www.salzburg.gv.at/themen/natur/naturschutzrecht-2/naturschutzrecht-salzburg/gebietsschutz/naturschutzgebiet)  
+
+- [x] CRS    
+- [x] Cropped    
+- [x] Rasterized    
+- [x] 1km resolution  
+- [x] High values representing high vulnerability  
+- [x] Stretched to 8-bit   
+- [x] Take care of N/A
+- [x] Plot
+
+255 <- not within AOI  
+254 <- Naturschutzgebiete  
+0 <- within AOI but not a Naturschutzgebiet  
+
+-----Nature reserves have been merged with Conservation areas
+
+# Forested area  
+255 <- Forest outside AOI  
+254 <- Forested area  
+0 <- Non forested area 
+
+```{r Waldflächen, eval= FALSE, echo = FALSE}
+
+Forest <- vect("R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\Drought_data_Salzburg\\Waldflaechen_Shapefile\\Waldflaechen\\Waldflaechen.shp")
+
+
+Forest_reproj <- project(Forest,
+                                y=crs_all)
+Forest_reproj$yes <- 20
+
+
+Forest_rast<-terra::rasterize(Forest_reproj,Mask,"yes")
+Forest_rast <- cover(Forest_rast, Mask, values = NA)
+
+Forest_stretch<-stretch(Forest_rast, minv=0, maxv=254, smin=-1, smax=20)
+Forest_stretch[is.na(Forest_stretch)] <- 255
+Forest_stretch[Forest_stretch == 254] <- 255
+
+# Remove isolated pixels from the forest mask
+Forest_generalized <-focal(Forest_stretch, w=matrix(1,3,3), fun=modal)    # 3x3 moving window
+
+# Visualization
+Forest_stretch_rast <- raster(Forest_patches)
+prim <- gplot(Forest_stretch_rast) + geom_tile(aes(fill=value), alpha=0.8) + coord_equal()+ scale_fill_gradient2(low = '#4cbb17', mid = '#f0e130', high ='#b7410e' , midpoint=128)+ggtitle("Forested area")
+ggplotly(prim, tooltip= "value")
+
+#--------------
+# Export
+forest <- file.path(export,"Mask_Forest.tif")
+terra::writeRaster(Forest_generalized,forest, names = "Mask_Forest", overwrite = TRUE)
+
+
+```
+
+```{r Non-agriculture mask, eval= FALSE, echo = FALSE}
+
+Non_agri_mask <- vect("R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\Mask_Salzburg_1km\\Non_agri_mask.shp")
+
+Non_agri_reproj <- project(Non_agri_mask,
+                                y=crs_all)
+Non_agri_reproj$yes <- 20
+
+
+Non_agri_rast<-terra::rasterize(Non_agri_reproj,Mask,"yes", cover = TRUE)
+plot(Non_agri_rast)
+Non_agri_rast[(Non_agri_rast<=0.8)] <- NA
+plot(Non_agri_rast)
+Non_agri_rast <- cover(Non_agri_rast, Mask, values = NA)
+
+Non_agri_stretch<-stretch(Non_agri_rast, minv=0, maxv=254, smin=-1, smax=1)
+Non_agri_stretch[is.na(Non_agri_stretch)] <- 255
+Non_agri_stretch[Non_agri_stretch == 254] <- 255
+
+# Remove isolated pixels from the Non_agri mask
+Non_agri_generalized <-focal(Non_agri_stretch, w=matrix(1,3,3), fun=modal)    # 3x3 moving window
+
+# Visualization
+Non_agri_stretch_rast <- raster(Non_agri_generalized)
+prim <- gplot(Non_agri_stretch_rast) + geom_tile(aes(fill=value), alpha=0.8) + coord_equal()+ scale_fill_gradient2(low = '#4cbb17', mid = '#f0e130', high ='#b7410e' , midpoint=128)+ggtitle("Non_agried area")
+ggplotly(prim, tooltip= "value")
+
+#--------------
+# Export
+agri <- file.path(export,"Mask_Non_agri.tif")
+terra::writeRaster(Non_agri_stretch, agri, names = "Mask_Non_agri", overwrite = TRUE)
+
+
+```
+
+
+# Industrial water supply    
+
+Nutzwasserversorgung & Trink-und Nutzwasserversorgung für betriebliche Versorgung.   
+
+```{r Wasserpunkte}
+Wasser <- vect("R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\alle_Wasserpunkte\\alle_Wasserpunkte.shp")
+
+Wasser <- subset(Wasser, Wasser$SPRT_NAME %in% c ("Nutzwasserversorgung", "Trink-und Nutzwasserversorgung fÃ¼r betriebliche Versorgung")) %>% 
+  project(crs_all)
+
+#Wasser$yes <- 20
+
+Wasser <- rasterize(Wasser, Mask, fun = length)
+
+Wasser <- distance(Wasser)
+Wasser <- mask(Wasser, Mask)
+# The next line can only be executed when mask_2 has already been created in 02_UNCHAIN_dataanalysis.Rmd
+
+Wasser <- stretch(Wasser, minv = 0, maxv = 254, smin = 0, smax = minmax(Wasser)[2,])
+
+Wasser[is.na(Wasser)] <- 255
+
+
+# Visualization
+Wasser_rast <- raster(Wasser)
+prim <- gplot(Wasser_rast) + geom_tile(aes(fill=value), alpha=0.8) + coord_equal()+ scale_fill_gradient2(low = '#4cbb17', mid = '#f0e130', high ='#b7410e' , midpoint=128)+ggtitle("Industrial water supply")
+ggplotly(prim, tooltip= "value")
+
+#-------------------------
+# Export 
+watersupply <- file.path(export_vul,"V_12_WaterSupply.tif")
+terra::writeRaster(Wasser, watersupply, names = "V_WaterSupply", overwrite = TRUE)
+```
+# Exposure 
+## Homesteads    
+
+- [x] CRS [+proj=laea +lat_0=52 +lon_0=10 +x_0=4321000 +y_0=3210000 +ellps=GRS80 +units=m +no_defs]   
+- [x] Cropped    
+- [x] Rasterized    
+- [x] Count Hofstellen per grid cell  
+- [x] 1km resolution  
+- [x] High values representing high vulnerability  
+- [x] Stretched to 8-bit   
+- [x] Take care of N/A  
+- [x] Plot
+ 
+Hofstellen sind doch kein guter Exposure Indikator, weil hier nur das Wohngebäude der Landwirtin/des Landwirts, bzw. das wirtschaftzliche Hauptgebäude verstanden wird. Entweder wir beschränken uns auf die Wohnbevlkerung nach Wirtschaftssektor oder finden noch einen anderen Indikator. 
+```{r Hofstellen, eval = FALSE}
+
+# Load
+Hofstellen <- vect("R:\\02_PROJECTS\\01_P_330001\\79_RESPECT\\03_Work\\WP2\\Data\\INVEKOS\\invekos_hofstelle_point\\invekos_hofstelle_point.shp") %>% 
+  project(crs_all)
+
+#Reproject
+#Hofstellen_reproj <- terra::project(Hofstellen,y=crs_all)
+
+# Crop
+Hofstellen <- crop(Hofstellen, Mask)  
+
+# Rasterize  
+Hofstellen <- rasterize(Hofstellen, y = Mask, fun = length) 
+
+# To distinguish between NA within and outside of the study area. All NA vaues within the study area are replaced by the value -1 from the mask dataset.
+Hofstellen <- cover (Hofstellen, Mask, values = NA)
+
+# The -1 from the mask dataset is replaced by the value 0. The function does not recognize the number -1, and sees it instead as a 1. Thus, we replace the value 1 with the value 0 for a correct result. 
+Hofstellen[Hofstellen == - 1] <- 0
+
+# Stretch to 8-bit  
+Hofstellen <- stretch(Hofstellen, minv = 0, maxv=254, smin = 1 , smax= 21)
+Hofstellen[is.na(Hofstellen)] <- 255
+
+# Visualization
+Hofstellen_rast <- raster(Hofstellen)
+hoefe <- gplot(Hofstellen_rast) + geom_tile(aes(fill=value), alpha=0.8) + coord_equal()+ scale_fill_gradient2(low = '#4cbb17', mid = '#f0e130', high ='#b7410e' , midpoint=128)+
+ ggtitle("Homesteads")
+ggplotly(hoefe, tooltip= "value")
+
+#-----------------------------------
+# Export 
+home <- file.path(export_exposure,"E_01_Homesteads.tif")
+terra::writeRaster(Hofstellen, home, names = "E_Homesteads", overwrite = TRUE)
+```
+ 
+## Residents per industry: Primary sector  
+
+- [x] CRS    
+- [x] Cropped    
+- [x] Rasterized    
+- [x] 1km resolution  
+- [x] Stretched to 8-bit   
+- [x] Take care of N/A
+- [x] Plot
+
+```{r Exposure Wohnbevoelkerung nach Wirtschaftsabschnitt}
+
+PrimarySector <- vect("R:\\02_PROJECTS\\01_P_330001\\79_RESPECT\\03_Work\\WP2\\Data\\Raster_STATAT\\Wohnbevoelkerung_nach_Wirtschaftszugehoerigkeit_der_Arbeitsstaette.shp") %>% 
+  project(crs_all)
+
+
+PrimarySector_p <- rasterize(PrimarySector, Mask, "PrimarySec")
+PrimarySector_p <- mask(PrimarySector_p, Mask)
+# In this raster we have no NA gaps and therefore do not have to use the "cover" function
+
+PrimarySector <- stretch(PrimarySector_p, minv = 0, maxv = 254, smin = minmax(PrimarySector_p)[1,], smax = minmax(PrimarySector_p)[2,])
+
+PrimarySector[is.na(PrimarySector)] <- 255
+
+# Visualization
+PrimarySector_rast <- raster(PrimarySector)
+prim <- gplot(PrimarySector_rast) + geom_tile(aes(fill=value), alpha=0.8) + coord_equal()+ scale_fill_gradient2(low = '#4cbb17', mid = '#f0e130', high ='#b7410e' , midpoint=128)+ggtitle("Residents per industry: Primary")
+ggplotly(prim, tooltip= "value")
+#------------
+# Percentage of total pop that works in the tertiary sector
+
+PrimaryShare <- (PrimarySector_p/Pop_rast) * 100
+#PrimaryShare <- cover (PrimaryShare, Mask, values = NA)
+# Implement here an algorithm for outlier detection
+PrimaryShare <- stretch(PrimaryShare, minv = 0, maxv = 254, smin = 0, smax = 50)
+PrimaryShare[is.na(PrimaryShare)] <- 255
+
+
+PrimaryShare_rast <- raster(PrimaryShare)
+prim <- gplot(PrimaryShare_rast) + geom_tile(aes(fill=value), alpha=0.8) + coord_equal()+ scale_fill_gradient2(low = '#4cbb17', mid = '#f0e130', high ='#b7410e' , midpoint=128)+ggtitle("Residents per industry: Primary")
+ggplotly(prim, tooltip= "value")
+#------------
+# Export 
+#prim_tot <- file.path(export_exposure,"E_02_PrimarySector_total.tif")
+#terra::writeRaster(PrimarySector, prim_tot, names = "E_PrimarySector_tot", overwrite = TRUE)
+
+prim_perc <- file.path(export_exposure,"E_01_PrimarySector_percentage.tif")
+terra::writeRaster(PrimaryShare, prim_perc, names = "E_PrimarySector_perc", overwrite = TRUE)
+```
+# Agricultural area as exposure factor
+Feldstücke und da dann wie viel Prozent pro 1 km Zelle mit Feldstücken voll sind. 
+```{r Exposure: Agriculturally used land}
+Feldst <- vect("R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\Feldstuecke\\Feldstuecke_BL_Salzburg.shp") %>% 
+  project(crs_all)
+
+Feldst <- rasterize(Feldst, Mask, cover = TRUE)
+Feldst <- mask(Feldst, Mask)
+
+Feldst <- stretch(Feldst, minv = 0, maxv = 254, smin = minmax(Feldst)[1,], smax = minmax(Feldst)[2,])
+#Feldst <- cover (Feldst, Mask, values = NA)
+Feldst[is.na(Feldst)] <- 255
+#Feldst[(Feldst == -1)] <- 0
+
+# Visualization---------
+Feldst_rast <- raster(Feldst)
+prim <- gplot(Feldst_rast) + geom_tile(aes(fill=value), alpha=0.8) + coord_equal()+ scale_fill_gradient2(low = '#4cbb17', mid = '#f0e130', high ='#b7410e' , midpoint=128)+ggtitle("Share of agriculutral land per cell")
+ggplotly(prim, tooltip= "value")
+
+# Export----------------
+agri_land <- file.path(export_exposure,"E_02_Agricultural_land.tif")
+terra::writeRaster(Feldst, agri_land, names = "E_Agricultural_land", overwrite = TRUE)
+```
+# Export  
+```{r export }
+
+Access<-vect("R:\\02_PROJECTS\\01_P_330001\\79_RESPECT\\03_Work\\WP2\\Data\\Accessibility_STATAT\\Accessibility_Grid.shp") %>% 
+  project(crs_all) %>% 
+  crop(Mask) 
+#Access$results__1
+
+Bodenfkt<-vect("R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\Drought_data_Salzburg\\Bodenfunktionsbewertung_Shapefile\\Bodenfunktionsbewertung\\Bodenfunktionsbewertung.shp") %>% 
+  project(crs_all) %>% 
+  crop(Mask)
+  
+BoKa<-vect("R:\\02_PROJECTS\\01_P_330001\\79_RESPECT\\03_Work\\WP2\\Data\\boka_1km_etrs89_2016\\boka_1km_etrs89_2016\\boka_1km_2016.shp") %>% 
+  project(crs_all) %>% 
+  crop(Mask)
+
+Gastro_v <- vect("R:\\02_PROJECTS\\01_P_330001\\79_RESPECT\\03_Work\\WP2\\Data\\Raster_STATAT\\Arbeitsstaetten_nach_Wirtschaftsabschnitt.shp") %>% 
+  project(crs_all) %>% 
+  crop(Mask)
+
+Ben_Geb <- vect("R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\Benachteiligte_Gebiete\\BenGeb_6kat_2019_LAEA.shp") %>% 
+  project(crs_all) %>% 
+  crop(Mask)
+
+Schutzgeb <- vect("R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\Naturschutz\\Landschaftsschutzgebiete_Shapefile\\Landschaftsschutzgebiete\\Landschaftsschutzgebiete.shp") %>% 
+  project(crs_all) %>% 
+  crop(Mask)
+
+#Naturschutz-----------------------------------
+Naturschutz <- vect("R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\Naturschutz\\Naturschutzgebiete_Shapefile\\Naturschutzgebiete\\Naturschutzgebiete.shp") %>% 
+  project(crs_all) %>% 
+  crop(Mask)
+
+Wasser <- vect("R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\alle_Wasserpunkte\\alle_Wasserpunkte.shp") %>% 
+  project(crs_all) %>% 
+  crop(Mask)
+
+PrimarySector <- vect("R:\\02_PROJECTS\\01_P_330001\\79_RESPECT\\03_Work\\WP2\\Data\\Raster_STATAT\\Wohnbevoelkerung_nach_Wirtschaftszugehoerigkeit_der_Arbeitsstaette.shp") %>% 
+  project(crs_all) %>% 
+  crop(Mask)
+
+Feldst <- vect("R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\Feldstuecke\\Feldstuecke_BL_Salzburg.shp") %>% 
+  project(crs_all) %>%
+  crop(Mask)
+
+#Load the already mosaiced and projected swf dataset
+swf<-rast("R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\SmallWoodyFeatures\\swf_mosaic_reproj.tif") %>% 
+  crop(Mask)
+
+impervious <- rast("R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\Imperviousness\\IMC_0612_020m_eu_03035_d03_full.tif") %>% 
+  project(Mask) %>% 
+  crop(Mask)
+
+export <- "R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\R_Scripts\\Risk_explorer_de\\data"
+acc <- file.path(export,"V_Access_crop.shp")
+writeVector(Access, acc, filetype="ESRI Shapefile", overwrite=FALSE)
+``` 
+
+[x] Accessibility  
+[x] Soil function evaluation: Habitat for soil organsism  
+[x] Soil function evaluation: Natural soil fertility   
+[x] Soil map: Water conditions  
+[x] Soil map: Gassland quality     
+[x] Diversity of Plants in Agriculture   
+[x] Homesteads    
+[x] Imperviousness change   
+[x] Agriculturally diadvantaged areas  
+[x] Verdichtungsgefährdete Flächen  
+[x] Small Woody Features  
+x Standardized Precipitation Index (SPI)  
+[x] Inhabitants per sector: Primary sector  
+```{r export raster, eval = FALSE}
+
+final_data_path <- "R:\\02_PROJECTS\\01_P_330001\\127_UNCHAIN\\03__Work\\WP4\\03_Casestudy\\02_Data\\00_Final_data"
+
+data_cube <- c(Access_stretch, swf_stretch, Organisms_stretch, Fertility_stretch, Wasserverh_stretch, Gruenland_stretch, Div_Plant_crop, Hofstellen_rast, PrimarySector_stretch, imperviousness_crop_reclass, Benachteiligte_Gebiete_stretch, BeherbergungGastro_stretch, Landschaftsschutz_stretch, Naturschutz_stretch, Forest_stretch, Wasser_stretch)
+
+vulnerability_cube <- c(Access_stretch, swf_stretch, Organisms_stretch, Fertility_stretch, Wasserverh_stretch, Gruenland_stretch, Div_Plant_crop, imperviousness_crop_reclass, Benachteiligte_Gebiete_stretch, BeherbergungGastro_stretch, Landschaftsschutz_stretch, Naturschutz_stretch,  Wasser_stretch)
+
+
+
+exposure_cube <- c(Hofstellen_rast, PrimarySector_stretch)
+
+names <- c("V_Access","V_SWF","V_Organisms","V_Fertile","V_Wasserverh","V_Gruenld", "V_Div_Plant","V_Sealed","V_Disadva","V_Gastro","V_Landschutz","V_Naturschutz","V_Wasser")
+# Accessibility 
+
+
+f <- file.path(final_data_path,"vulnerability_cube.tif")
+terra::writeRaster(vulnerability_cube, f, names = names, overwrite = TRUE)
+
+#library(stars)
+#library(gdalUtils)
+#imperviousness_crop_reclass %>% 
+#  st_as_stars %>% 
+#  write_stars("Imperviousness.gpkg",
+#              driver = "GPKG")
+
+#swf_crop %>% 
+#  st_as_stars %>% 
+#  write_stars("SmallWoodyFeatures.gpkg",
+#              driver = "GPKG")
+
+#swf_agg1km %>% 
+#  st_as_stars %>% 
+#  write_stars("SmallWoodyFeatures1km.gpkg",
+#              driver = "GPKG")
+
+#plough_crop %>% 
+#  st_as_stars %>% 
+# write_stars("Plughing_6years.gpkg",
+#              driver = "GPKG")
+
+#gdalUtils::gdalinfo("Drought_casestudy_rasters.gpkg") %>% 
+#  cat(sep = "\n")
+```
