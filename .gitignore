@@ -3,3 +3,6 @@
 *.html
 /01_Hazard/SPI relevant literature
 /04_Dashboard/Risk_explorer_v2
+/04_Dashboard/Risk_explorer_de/data
+/02_Data_preprocessing/01_UNCHAIN_datapreprocessing_upd.html
+/03_Systems_analysis/05_UNCHAIN_Clusters.hmtl
